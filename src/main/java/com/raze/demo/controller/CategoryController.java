@@ -18,6 +18,10 @@ import org.springframework.web.bind.annotation.RestController;
 import java.net.URI;
 import java.util.List;
 
+/**
+ * Controlador REST para la gestión de categorías.
+ * Proporciona endpoints para realizar operaciones CRUD sobre categorías.
+ */
 @RestController
 @RequestMapping("/api/categories")
 @RequiredArgsConstructor
@@ -25,16 +29,33 @@ public class CategoryController {
 
     private final CategoryService categoryService;
 
+    /**
+     * Obtiene la lista de todas las categorías registradas.
+     *
+     * @return Lista de {@link CategoryResponse}
+     */
     @GetMapping
     public List<CategoryResponse> findAll() {
         return categoryService.findAll();
     }
 
+    /**
+     * Obtiene una categoría por su identificador único.
+     *
+     * @param id Identificador de la categoría
+     * @return {@link CategoryResponse} con los datos de la categoría
+     */
     @GetMapping("/{id}")
     public CategoryResponse findById(@PathVariable Integer id) {
         return categoryService.findById(id);
     }
 
+    /**
+     * Crea una nueva categoría.
+     *
+     * @param request Datos de la categoría a crear
+     * @return {@link ResponseEntity} con la categoría creada y el estado HTTP 201 Created
+     */
     @PostMapping
     public ResponseEntity<CategoryResponse> create(@Valid @RequestBody CategoryRequest request) {
         CategoryResponse response = categoryService.create(request);
@@ -43,11 +64,24 @@ public class CategoryController {
                 .body(response);
     }
 
+    /**
+     * Actualiza los datos de una categoría existente.
+     *
+     * @param id Identificador de la categoría a actualizar
+     * @param request Nuevos datos de la categoría
+     * @return {@link CategoryResponse} con los datos actualizados
+     */
     @PutMapping("/{id}")
     public CategoryResponse update(@PathVariable Integer id, @Valid @RequestBody CategoryRequest request) {
         return categoryService.update(id, request);
     }
 
+    /**
+     * Elimina una categoría por su identificador.
+     *
+     * @param id Identificador de la categoría a eliminar
+     * @return {@link ResponseEntity} vacío con estado HTTP 204 No Content
+     */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Integer id) {
         categoryService.delete(id);

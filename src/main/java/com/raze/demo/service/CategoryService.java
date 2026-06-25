@@ -12,12 +12,20 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
+/**
+ * Servicio encargado de manejar la lógica de negocio para las categorías.
+ */
 @Service
 @RequiredArgsConstructor
 public class CategoryService {
 
     private final CategoryRepository categoryRepository;
 
+    /**
+     * Recupera todas las categorías registradas en la base de datos.
+     *
+     * @return Lista de {@link CategoryResponse}
+     */
     @Transactional(readOnly = true)
     public List<CategoryResponse> findAll() {
         return categoryRepository.findAll()
@@ -26,11 +34,25 @@ public class CategoryService {
                 .toList();
     }
 
+    /**
+     * Busca una categoría por su identificador.
+     *
+     * @param id Identificador único de la categoría
+     * @return {@link CategoryResponse} con los datos de la categoría encontrada
+     * @throws ResourceNotFoundException si la categoría no existe
+     */
     @Transactional(readOnly = true)
     public CategoryResponse findById(Integer id) {
         return toResponse(getCategory(id));
     }
 
+    /**
+     * Crea una nueva categoría validando que el nombre no esté duplicado.
+     *
+     * @param request Datos de la categoría a crear
+     * @return {@link CategoryResponse} con la categoría creada
+     * @throws DuplicateResourceException si ya existe una categoría con el mismo nombre
+     */
     @Transactional
     public CategoryResponse create(CategoryRequest request) {
         ensureNameIsAvailable(request.name(), null);
@@ -42,6 +64,15 @@ public class CategoryService {
         return toResponse(categoryRepository.save(category));
     }
 
+    /**
+     * Actualiza los datos de una categoría existente.
+     *
+     * @param id Identificador de la categoría a actualizar
+     * @param request Nuevos datos de la categoría
+     * @return {@link CategoryResponse} con la categoría actualizada
+     * @throws ResourceNotFoundException si la categoría no existe
+     * @throws DuplicateResourceException si el nuevo nombre ya está en uso por otra categoría
+     */
     @Transactional
     public CategoryResponse update(Integer id, CategoryRequest request) {
         Category category = getCategory(id);
@@ -55,6 +86,12 @@ public class CategoryService {
         return toResponse(category);
     }
 
+    /**
+     * Realiza un borrado lógico de la categoría, desactivándola.
+     *
+     * @param id Identificador de la categoría a desactivar
+     * @throws ResourceNotFoundException si la categoría no existe
+     */
     @Transactional
     public void delete(Integer id) {
         Category category = getCategory(id);

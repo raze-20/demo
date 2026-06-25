@@ -19,6 +19,10 @@ import java.net.URI;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Controlador REST para la gestión de productos.
+ * Proporciona endpoints para realizar operaciones CRUD sobre los productos del menú.
+ */
 @RestController
 @RequestMapping("/api/products")
 @RequiredArgsConstructor
@@ -26,16 +30,33 @@ public class ProductController {
 
     private final ProductService productService;
 
+    /**
+     * Obtiene la lista de todos los productos disponibles.
+     *
+     * @return Lista de {@link ProductResponse}
+     */
     @GetMapping
     public List<ProductResponse> findAll() {
         return productService.findAll();
     }
 
+    /**
+     * Obtiene un producto por su identificador único (UUID).
+     *
+     * @param id Identificador UUID del producto
+     * @return {@link ProductResponse} con los datos del producto
+     */
     @GetMapping("/{id}")
     public ProductResponse findById(@PathVariable UUID id) {
         return productService.findById(id);
     }
 
+    /**
+     * Crea un nuevo producto en el catálogo.
+     *
+     * @param request Datos del producto a crear
+     * @return {@link ResponseEntity} con el producto creado y el estado HTTP 201 Created
+     */
     @PostMapping
     public ResponseEntity<ProductResponse> create(@Valid @RequestBody ProductRequest request) {
         ProductResponse response = productService.create(request);
@@ -44,11 +65,24 @@ public class ProductController {
                 .body(response);
     }
 
+    /**
+     * Actualiza la información de un producto existente.
+     *
+     * @param id Identificador UUID del producto a actualizar
+     * @param request Nuevos datos del producto
+     * @return {@link ProductResponse} con los datos actualizados
+     */
     @PutMapping("/{id}")
     public ProductResponse update(@PathVariable UUID id, @Valid @RequestBody ProductRequest request) {
         return productService.update(id, request);
     }
 
+    /**
+     * Elimina un producto del catálogo por su identificador.
+     *
+     * @param id Identificador UUID del producto a eliminar
+     * @return {@link ResponseEntity} vacío con estado HTTP 204 No Content
+     */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         productService.delete(id);
