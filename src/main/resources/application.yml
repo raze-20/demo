@@ -1,0 +1,15 @@
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/cafeteria_db}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:rootpassword}
+  jpa:
+    hibernate:
+      ddl-auto: validate # REGLA DE ORO: Solo valida que Java y SQL coincidan, NO altera la base.
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        '[format_sql]': true
+  flyway:
+    enabled: true
+    baseline-on-migrate: true

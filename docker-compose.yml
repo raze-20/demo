@@ -1,0 +1,16 @@
+services:
+  postgres-cafeteria:
+    image: postgres:16-alpine
+    container_name: db_cafeteria
+    restart: always
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: rootpassword
+      POSTGRES_DB: cafeteria_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata_cafeteria:/var/lib/postgresql/data
+
+volumes:
+  pgdata_cafeteria:
