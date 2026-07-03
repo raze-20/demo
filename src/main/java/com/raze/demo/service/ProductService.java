@@ -1,140 +1,32 @@
 package com.raze.demo.service;
 
-import com.raze.demo.dto.ProductRequest;
-import com.raze.demo.dto.ProductResponse;
-import com.raze.demo.exception.DuplicateResourceException;
-import com.raze.demo.exception.ResourceNotFoundException;
-import com.raze.demo.model.Category;
-import com.raze.demo.model.Product;
-import com.raze.demo.repository.CategoryRepository;
-import com.raze.demo.repository.ProductRepository;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Servicio encargado de manejar la lógica de negocio para los productos.
- */
-@Service
-@RequiredArgsConstructor
-public class ProductService {
+import com.raze.demo.dto.ProductRequest;
+import com.raze.demo.dto.ProductResponse;
 
-    private final ProductRepository productRepository;
-    private final CategoryRepository categoryRepository;
+public interface ProductService {
 
-    /**
-     * Recupera todos los productos registrados en el sistema.
-     *
-     * @return Lista de {@link ProductResponse}
-     */
-    @Transactional(readOnly = true)
-    public List<ProductResponse> findAll() {
-        return productRepository.findAll()
-                .stream()
-                .map(this::toResponse)
-                .toList();
-    }
+    public List<ProductResponse> findAll();
 
-    /**
-     * Busca un producto por su identificador UUID.
-     *
-     * @param id Identificador único del producto
-     * @return {@link ProductResponse} con los datos del producto
-     * @throws ResourceNotFoundException si el producto no se encuentra
-     */
-    @Transactional(readOnly = true)
-    public ProductResponse findById(UUID id) {
-        return toResponse(getProduct(id));
-    }
+    public ProductResponse findById(UUID id);
 
-    /**
-     * Crea un nuevo producto validando que no exista otro con el mismo nombre y
-     * que la categoría asociada exista.
-     *
-     * @param request Datos del nuevo producto
-     * @return {@link ProductResponse} con los datos creados
-     * @throws DuplicateResourceException si el nombre del producto ya está en uso
-     * @throws ResourceNotFoundException si la categoría asignada no existe
-     */
-    @Transactional
-    public ProductResponse create(ProductRequest request) {
-        ensureNameIsAvailable(request.name(), null);
+    public ProductResponse create(ProductRequest request);
 
-        Product product = new Product();
-        product.setName(request.name().trim());
-        product.setBasePrice(request.basePrice());
-        product.setActive(request.active() == null || request.active());
-        product.setCategory(getCategory(request.categoryId()));
+    public ProductResponse update(UUID id, ProductRequest request);
 
-        return toResponse(productRepository.save(product));
-    }
+    public void delete(UUID id);
 
-    /**
-     * Actualiza la información de un producto existente.
-     *
-     * @param id Identificador UUID del producto a modificar
-     * @param request Nuevos datos del producto
-     * @return {@link ProductResponse} con los datos actualizados
-     * @throws ResourceNotFoundException si el producto o la categoría no existen
-     * @throws DuplicateResourceException si el nuevo nombre ya está en uso por otro producto
-     */
-    @Transactional
-    public ProductResponse update(UUID id, ProductRequest request) {
-        Product product = getProduct(id);
-        ensureNameIsAvailable(request.name(), id);
-
-        product.setName(request.name().trim());
-        product.setBasePrice(request.basePrice());
-        product.setCategory(getCategory(request.categoryId()));
-        if (request.active() != null) {
-            product.setActive(request.active());
-        }
-
-        return toResponse(product);
-    }
-
-    /**
-     * Realiza un borrado lógico del producto, cambiándolo a estado inactivo.
-     *
-     * @param id Identificador del producto a desactivar
-     * @throws ResourceNotFoundException si el producto no se encuentra
-     */
-    @Transactional
-    public void delete(UUID id) {
-        Product product = getProduct(id);
-        product.setActive(false);
-    }
-
-    private Product getProduct(UUID id) {
-        return productRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + id));
+    /* private Product getProduct(UUID id) {
+        return null;
     }
 
     private Category getCategory(Integer id) {
-        return categoryRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Category not found: " + id));
+        return null;
     }
 
-    private void ensureNameIsAvailable(String name, UUID currentId) {
-        productRepository.findByNameIgnoreCase(name.trim())
-                .filter(product -> !product.getId().equals(currentId))
-                .ifPresent(product -> {
-                    throw new DuplicateResourceException("Product already exists: " + name);
-                });
-    }
+    private void ensureNameIsAvailable(String name, UUID currentId);
+ */
 
-    private ProductResponse toResponse(Product product) {
-        Category category = product.getCategory();
-        return new ProductResponse(
-                product.getId(),
-                product.getName(),
-                product.getBasePrice(),
-                product.getActive(),
-                category == null ? null : category.getId(),
-                category == null ? null : category.getName()
-        );
-    }
 }
