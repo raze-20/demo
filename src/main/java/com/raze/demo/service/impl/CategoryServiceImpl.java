@@ -6,6 +6,8 @@ import com.raze.demo.exception.DuplicateResourceException;
 import com.raze.demo.exception.ResourceNotFoundException;
 import com.raze.demo.model.Category;
 import com.raze.demo.repository.CategoryRepository;
+import com.raze.demo.service.CategoryService;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,7 +19,7 @@ import java.util.List;
  */
 @Service
 @RequiredArgsConstructor
-public class CategoryServiceImpl {
+public class CategoryServiceImpl implements CategoryService {
 
     private final CategoryRepository categoryRepository;
 

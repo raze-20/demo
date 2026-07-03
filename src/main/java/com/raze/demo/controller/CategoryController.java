@@ -2,7 +2,7 @@ package com.raze.demo.controller;
 
 import com.raze.demo.dto.CategoryRequest;
 import com.raze.demo.dto.CategoryResponse;
-import com.raze.demo.service.impl.CategoryServiceImpl;
+import com.raze.demo.service.CategoryService;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -28,7 +28,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class CategoryController {
 
-    private final CategoryServiceImpl categoryService;
+    private final CategoryService categoryService;
 
     /**
      * Obtiene la lista de todas las categorías registradas.
