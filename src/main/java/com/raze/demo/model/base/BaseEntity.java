@@ -16,5 +16,4 @@ public abstract class BaseEntity {
     @UuidGenerator
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
-
 }

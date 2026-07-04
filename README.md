@@ -201,9 +201,7 @@ Enums PostgreSQL:
 ### Riesgos Y Deuda Tecnica
 
 - La cobertura de tests todavia es minima: solo existe `contextLoads`.
-- `CategoryService` existe como interfaz vacia, mientras `CategoryController` depende de `CategoryServiceImpl` directamente. Conviene alinear esto con `ProductService` y `BranchService`.
 - Hay comentarios Java con problemas de codificacion en algunos archivos (`Ã³`, `Ã­`, etc.).
-- `BranchServiceImpl.delete` hace borrado fisico, mientras categorias y productos hacen borrado logico. Conviene definir una politica unica.
 - No hay endpoints para usuarios, empleados, clientes, ingredientes, recetas, inventario, ordenes ni pagos.
 - No hay autenticacion/autorizacion.
 - No hay paginacion, filtros ni ordenamiento en listados.
@@ -212,9 +210,7 @@ Enums PostgreSQL:
 
 ## Siguientes Pasos Recomendados
 
-1. Normalizar la capa de servicios
-   - Hacer que `CategoryServiceImpl` implemente `CategoryService`.
-   - Inyectar interfaces en todos los controladores.
+1. Limpiar código
    - Quitar comentarios muertos y limpiar codificacion de comentarios.
 
 2. Agregar tests reales
@@ -256,8 +252,8 @@ Enums PostgreSQL:
 8. Preparar entrega
    - Dockerfile para la aplicacion.
    - Compose completo con app + database.
-   - Pipeline CI para compilar y correr pruebas.
+   - Configurar GitHub Actions (CI/CD) para compilar y correr pruebas en cada push.
 
 ## Prioridad Sugerida
 
-El proximo paso mas valioso es normalizar servicios y agregar tests para los CRUDs existentes. Despues de eso, conviene construir el flujo de ordenes y pagos, porque es el centro del negocio.
+El proximo paso mas valioso es agregar tests para los CRUDs existentes. Despues de eso, conviene construir el flujo de ordenes y pagos, porque es el centro del negocio.

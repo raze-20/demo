@@ -32,4 +32,7 @@ public class Branch extends BaseEntity {
     @Column(name = "created_at", updatable = false)
     private OffsetDateTime createdAt;
 
+    @Column(name = "active", nullable = false)
+    private boolean active;
+
 }

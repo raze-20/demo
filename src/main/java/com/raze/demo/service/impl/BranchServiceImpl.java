@@ -62,7 +62,8 @@ public class BranchServiceImpl implements BranchService {
     @Transactional
     public void delete(UUID id) {
         Branch branch = getBranch(id);
-        branchRepository.delete(branch);
+        branch.setActive(false);
+        branchRepository.save(branch);
     }
 
     private Branch getBranch(UUID id) {
