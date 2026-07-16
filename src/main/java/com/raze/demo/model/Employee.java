@@ -42,4 +42,7 @@ public class Employee {
 
     @Column(name = "hire_date", nullable = false)
     private LocalDate hireDate;
+
+    @Column(name = "active", nullable = false)
+    private Boolean active = true;
 }

@@ -26,7 +26,7 @@ public class BranchServiceImpl implements BranchService {
      */
     @Transactional(readOnly = true)
     public List<BranchResponse> findAll() {
-        return branchRepository.findAll()
+        return branchRepository.findByActiveTrue()
                 .stream()
                 .map(this::toResponse)
                 .toList();

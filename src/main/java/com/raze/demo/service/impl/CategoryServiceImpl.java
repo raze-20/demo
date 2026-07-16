@@ -30,7 +30,7 @@ public class CategoryServiceImpl implements CategoryService {
      */
     @Transactional(readOnly = true)
     public List<CategoryResponse> findAll() {
-        return categoryRepository.findAll()
+        return categoryRepository.findByActiveTrue()
                 .stream()
                 .map(this::toResponse)
                 .toList();

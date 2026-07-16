@@ -34,7 +34,7 @@ public class ProductServiceImpl implements ProductService{
      */
     @Transactional(readOnly = true)
     public List<ProductResponse> findAll() {
-        return productRepository.findAll()
+        return productRepository.findByActiveTrue()
                 .stream()
                 .map(this::toResponse)
                 .toList();

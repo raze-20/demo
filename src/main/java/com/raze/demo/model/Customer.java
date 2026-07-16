@@ -34,4 +34,7 @@ public class Customer {
 
     @Column(name = "birth_date")
     private LocalDate birthDate;
+
+    @Column(name = "active", nullable = false)
+    private Boolean active = true;
 }
