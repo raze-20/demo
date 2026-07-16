@@ -16,9 +16,9 @@ El proyecto ya tiene una base solida de dominio:
 - Borrado logico (`active=false`) para sucursales, categorias, productos, ingredientes, usuarios, clientes y empleados.
 - Contraseñas de usuario cifradas con `spring-security-crypto` (`PasswordEncoder`).
 - `customers` y `employees` extienden un `user` existente mediante clave compartida (`user_id`).
-- Tests unitarios de servicios (`Branch`, `Customer`, `Employee`) con Mockito.
-- Tests de controlador con `MockMvc` para `branches`.
-- Test de integracion end-to-end para `branches` con Testcontainers (Postgres real + Flyway).
+- Tests unitarios de servicios con Mockito para `Branch`, `Customer`, `Employee`, `Category`, `Product`, `Ingredient` y `User`.
+- Tests de controlador con `MockMvc` para `branches`, `categories`, `products`, `ingredients`, `users`, `customers` y `employees`.
+- Tests de integracion end-to-end con Testcontainers (Postgres real + Flyway) para `branches`, y para los flujos criticos de catalogo (`categories` + `products`) y alta de usuarios (cifrado de contraseña, correo duplicado).
 
 ## Stack Tecnico
 
@@ -90,10 +90,11 @@ Flyway ejecuta `src/main/resources/db/migration/V1__init_schema.sql` al iniciar 
 
 ## Ejecutar
 
-En Windows, con JDK 25:
+En Windows, con JDK 25. La ruta de `JAVA_HOME` depende de donde este instalado el JDK en cada maquina; usa la que corresponda:
 
 ```powershell
-$env:JAVA_HOME='C:\Program Files\Eclipse Adoptium\jdk-25.0.2.10-hotspot'
+$env:JAVA_HOME='C:\Program Files\Eclipse Adoptium\jdk-25.0.2.10-hotspot'  # instalacion estandar de Eclipse Adoptium
+$env:JAVA_HOME='D:\new\jdk'                                              # ruta usada en esta maquina
 $env:Path="$env:JAVA_HOME\bin;$env:Path"
 .\mvnw.cmd spring-boot:run
 ```
@@ -101,7 +102,8 @@ $env:Path="$env:JAVA_HOME\bin;$env:Path"
 Ejecutar pruebas:
 
 ```powershell
-$env:JAVA_HOME='C:\Program Files\Eclipse Adoptium\jdk-25.0.2.10-hotspot'
+$env:JAVA_HOME='C:\Program Files\Eclipse Adoptium\jdk-25.0.2.10-hotspot'  # instalacion estandar de Eclipse Adoptium
+$env:JAVA_HOME='D:\new\jdk'                                              # ruta usada en esta maquina
 $env:Path="$env:JAVA_HOME\bin;$env:Path"
 .\mvnw.cmd test
 ```
@@ -306,11 +308,10 @@ Enums PostgreSQL:
 - Se usa `BigDecimal` para dinero y `OffsetDateTime` para timestamps con zona.
 - Borrado logico consistente (`active=false`) en todas las entidades con CRUD expuesto.
 - Contraseñas cifradas con `spring-security-crypto`, nunca se guardan en texto plano.
-- Ya existen tests unitarios, de controlador y de integracion (Testcontainers) como referencia para el resto del proyecto.
+- Cobertura de tests unitarios, de controlador y de integracion (Testcontainers) para todos los CRUDs expuestos hasta ahora.
 
 ### Riesgos Y Deuda Tecnica
 
-- La cobertura de tests todavia es parcial: solo `Branch`, `Customer` y `Employee` tienen tests unitarios, y solo `Branch` tiene test de controlador e integracion.
 - No hay endpoints para recetas, inventario, ordenes ni pagos.
 - No hay autenticacion/autorizacion real (login, JWT o sesiones); solo se cifran contraseñas.
 - No hay paginacion, filtros ni ordenamiento en listados.
@@ -319,47 +320,42 @@ Enums PostgreSQL:
 
 ## Siguientes Pasos Recomendados
 
-1. Completar cobertura de tests
-   - Tests unitarios de servicios para `Category`, `Product`, `Ingredient` y `User`.
-   - Tests de controlador (`MockMvc`) para el resto de los endpoints.
-   - Tests de integracion con Testcontainers para los flujos criticos.
-
-2. Completar flujo de ventas
+1. Completar flujo de ventas
    - Crear orden.
    - Agregar items.
    - Calcular subtotal, impuestos y total.
    - Registrar pago.
    - Cambiar estado de orden.
 
-3. Implementar inventario
+2. Implementar inventario
    - Recetas por producto.
    - Stock por sucursal.
    - Movimientos de inventario.
    - Descuento automatico de ingredientes al vender productos.
 
-4. Agregar seguridad
+3. Agregar seguridad
    - Spring Security.
    - Login.
    - JWT o sesiones.
    - Autorizacion por rol: `ADMIN`, `MANAGER`, `CASHIER`, `BARISTA`, `CUSTOMER`.
 
-5. Mejorar API publica
+4. Mejorar API publica
    - Paginacion en `GET`.
    - Filtros por `active`, categoria, sucursal o nombre.
    - OpenAPI/Swagger.
    - Versionado de API (`/api/v1/...`).
 
-6. Separar configuraciones
+5. Separar configuraciones
    - `application-dev.yml`
    - `application-test.yml`
    - `application-prod.yml`
    - Variables de entorno obligatorias para produccion.
 
-7. Preparar entrega
+6. Preparar entrega
    - Dockerfile para la aplicacion.
    - Compose completo con app + database.
    - Configurar GitHub Actions (CI/CD) para compilar y correr pruebas en cada push.
 
 ## Prioridad Sugerida
 
-El proximo paso mas valioso es cerrar la brecha de tests en los CRUDs que aun no tienen cobertura (`Category`, `Product`, `Ingredient`, `User`). Despues de eso, conviene construir el flujo de ordenes y pagos, porque es el centro del negocio.
+Con la brecha de tests en los CRUDs ya cerrada (`Category`, `Product`, `Ingredient`, `User` con tests unitarios y de controlador; flujos criticos de catalogo y alta de usuarios con tests de integracion), el proximo paso mas valioso es construir el flujo de ordenes y pagos, porque es el centro del negocio.
