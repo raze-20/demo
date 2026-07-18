@@ -21,39 +21,35 @@ import java.util.UUID;
 
 import com.raze.demo.dto.CustomerRequest;
 import com.raze.demo.dto.CustomerResponse;
+import com.raze.demo.dto.CustomerUpdateRequest;
+import com.raze.demo.enums.UserRole;
 import com.raze.demo.exception.DuplicateResourceException;
 import com.raze.demo.exception.ResourceNotFoundException;
 import com.raze.demo.model.Customer;
 import com.raze.demo.model.User;
 import com.raze.demo.repository.CustomerRepository;
 import com.raze.demo.repository.UserRepository;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 /**
  * TEST DE UNIDAD (service layer) — mismo patrón que {@link BranchServiceImplTest}.
  *
- * No hay Spring, no hay base de datos: solo el objeto real CustomerServiceImpl con sus
- * dependencias (CustomerRepository, UserRepository) reemplazadas por mocks de Mockito.
- * La diferencia con Branch es que aquí Customer depende de DOS repositorios, así que hay
- * dos @Mock que @InjectMocks combina en un solo constructor al crear CustomerServiceImpl.
+ * CustomerServiceImpl ahora registra el User (rol CUSTOMER fijo) y el Customer en el mismo
+ * create(), así que depende de TRES colaboradores (Customer/User repos + PasswordEncoder).
  */
 @ExtendWith(MockitoExtension.class)
-// Sin esto, Mockito nunca inicializaría los @Mock/@InjectMocks de abajo (quedarían null)
-// porque nadie llamaría a MockitoAnnotations.openMocks(this) por nosotros.
 class CustomerServiceImplTest {
 
     @Mock
-    // Doble falso de CustomerRepository: no toca Postgres, responde solo lo que
-    // configuremos explícitamente con when(...) en cada test.
     private CustomerRepository customerRepository;
 
     @Mock
-    // Segundo doble falso, para el segundo colaborador del service (busca el User
-    // "dueño" del Customer antes de crear el perfil).
     private UserRepository userRepository;
 
+    @Mock
+    private PasswordEncoder passwordEncoder;
+
     @InjectMocks
-    // Mockito instancia CustomerServiceImpl de verdad y detecta, por tipo, qué mock va en
-    // cada parámetro del constructor generado por @RequiredArgsConstructor.
     private CustomerServiceImpl customerService;
 
     private UUID customerId;
@@ -61,8 +57,6 @@ class CustomerServiceImplTest {
     private Customer customer;
 
     @BeforeEach
-    // Se ejecuta antes de CADA @Test (no una vez por clase), para que cada test tenga
-    // su propio User/Customer "limpios" y no se pisen datos entre pruebas.
     void setUp() {
         customerId = UUID.randomUUID();
 
@@ -71,6 +65,7 @@ class CustomerServiceImplTest {
         user.setEmail("cliente@example.com");
         user.setFirstName("Juan");
         user.setLastName("Perez");
+        user.setRole(UserRole.CUSTOMER);
 
         customer = new Customer();
         customer.setUserId(customerId);
@@ -84,8 +79,6 @@ class CustomerServiceImplTest {
     }
 
     @Test
-    // Arrange (when) + Act (llamar al service real) + Assert (assertThat/verify).
-    // No requiere ningún contexto de Spring para ejecutarse, solo el mock configurado.
     void findAll_devuelveSoloCustomersActivos() {
         when(customerRepository.findByActiveTrue()).thenReturn(List.of(customer));
 
@@ -93,8 +86,6 @@ class CustomerServiceImplTest {
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).email()).isEqualTo("cliente@example.com");
-        // Confirma que el service usó el método correcto del repositorio (no solo que
-        // el resultado "por casualidad" coincide).
         verify(customerRepository).findByActiveTrue();
     }
 
@@ -110,9 +101,6 @@ class CustomerServiceImplTest {
     }
 
     @Test
-    // assertThrows ejecuta el lambda y verifica que lance justo esa excepción; si no la
-    // lanza, o lanza otra distinta, el test falla. No necesita @ExceptionHandler ni MockMvc
-    // porque aquí se está probando el service en Java puro, no la respuesta HTTP.
     void findById_lanzaExcepcion_cuandoNoExiste() {
         UUID missingId = UUID.randomUUID();
         when(customerRepository.findById(missingId)).thenReturn(Optional.empty());
@@ -121,10 +109,13 @@ class CustomerServiceImplTest {
     }
 
     @Test
-    void create_guardaYRetornaCustomer_cuandoUsuarioExiste() {
-        CustomerRequest request = new CustomerRequest(customerId, 5, LocalDate.of(2000, 1, 1));
-        when(customerRepository.existsById(customerId)).thenReturn(false);
-        when(userRepository.findById(customerId)).thenReturn(Optional.of(user));
+    // create() ahora registra el User (rol CUSTOMER forzado por el servicio, no por el
+    // request) y el Customer en el mismo paso.
+    void create_registraUsuarioYCustomer_cuandoEmailDisponible() {
+        CustomerRequest request = new CustomerRequest("cliente@example.com", "password123", "Juan", "Perez", 5, LocalDate.of(2000, 1, 1));
+        when(userRepository.findByEmailIgnoreCase("cliente@example.com")).thenReturn(Optional.empty());
+        when(passwordEncoder.encode("password123")).thenReturn("hashed");
+        when(userRepository.save(any(User.class))).thenReturn(user);
         // any(Customer.class): no nos importa el contenido exacto del objeto que el service
         // construye internamente, solo que al guardar "algún" Customer, el mock responda esto.
         when(customerRepository.save(any(Customer.class))).thenReturn(customer);
@@ -133,29 +124,21 @@ class CustomerServiceImplTest {
 
         assertThat(result).isNotNull();
         assertThat(result.userId()).isEqualTo(customerId);
+        verify(userRepository).save(any(User.class));
         verify(customerRepository).save(any(Customer.class));
     }
 
     @Test
-    void create_lanzaExcepcion_cuandoUsuarioYaTieneCustomer() {
-        CustomerRequest request = new CustomerRequest(customerId, 5, LocalDate.of(2000, 1, 1));
-        when(customerRepository.existsById(customerId)).thenReturn(true);
+    void create_lanzaExcepcion_cuandoEmailYaExiste() {
+        CustomerRequest request = new CustomerRequest("cliente@example.com", "password123", "Juan", "Perez", 5, LocalDate.of(2000, 1, 1));
+        when(userRepository.findByEmailIgnoreCase("cliente@example.com")).thenReturn(Optional.of(user));
 
         assertThrows(DuplicateResourceException.class, () -> customerService.create(request));
     }
 
     @Test
-    void create_lanzaExcepcion_cuandoUsuarioNoExiste() {
-        CustomerRequest request = new CustomerRequest(customerId, 5, LocalDate.of(2000, 1, 1));
-        when(customerRepository.existsById(customerId)).thenReturn(false);
-        when(userRepository.findById(customerId)).thenReturn(Optional.empty());
-
-        assertThrows(ResourceNotFoundException.class, () -> customerService.create(request));
-    }
-
-    @Test
     void update_actualizaYRetornaCustomer_cuandoExiste() {
-        CustomerRequest request = new CustomerRequest(customerId, 20, LocalDate.of(1995, 5, 5));
+        CustomerUpdateRequest request = new CustomerUpdateRequest(20, LocalDate.of(1995, 5, 5));
         when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
         when(customerRepository.save(any(Customer.class))).thenReturn(customer);
 
@@ -171,7 +154,7 @@ class CustomerServiceImplTest {
     @Test
     void update_lanzaExcepcion_cuandoNoExiste() {
         UUID missingId = UUID.randomUUID();
-        CustomerRequest request = new CustomerRequest(missingId, 20, LocalDate.of(1995, 5, 5));
+        CustomerUpdateRequest request = new CustomerUpdateRequest(20, LocalDate.of(1995, 5, 5));
         when(customerRepository.findById(missingId)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> customerService.update(missingId, request));

@@ -2,6 +2,7 @@ package com.raze.demo.controller;
 
 import com.raze.demo.dto.EmployeeRequest;
 import com.raze.demo.dto.EmployeeResponse;
+import com.raze.demo.dto.EmployeeUpdateRequest;
 import com.raze.demo.service.EmployeeService;
 
 import jakarta.validation.Valid;
@@ -38,7 +39,6 @@ public class EmployeeController {
      */
     @GetMapping
     public List<EmployeeResponse> findAll() {
-        // TODO change the method
         return service.findAll();
     }
 
@@ -54,9 +54,10 @@ public class EmployeeController {
     }
 
     /**
-     * Crea un perfil de empleado para un usuario existente.
+     * Registra un nuevo empleado: crea su usuario (con el rol operativo indicado en
+     * {@code type}) y su perfil de empleado en un solo paso.
      *
-     * @param request Datos del nuevo empleado
+     * @param request Datos del usuario y del perfil de empleado
      * @return {@link ResponseEntity} con el empleado creado
      */
     @PostMapping
@@ -73,7 +74,7 @@ public class EmployeeController {
      * @return {@link EmployeeResponse} con los datos actualizados
      */
     @PutMapping("/{userId}")
-    public EmployeeResponse update(@PathVariable UUID userId, @Valid @RequestBody EmployeeRequest request) {
+    public EmployeeResponse update(@PathVariable UUID userId, @Valid @RequestBody EmployeeUpdateRequest request) {
         return service.update(userId, request);
     }
 

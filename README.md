@@ -15,7 +15,7 @@ El proyecto ya tiene una base solida de dominio:
 - Manejo global de errores para recursos no encontrados, duplicados y errores de validacion.
 - Borrado logico (`active=false`) para sucursales, categorias, productos, ingredientes, usuarios, clientes y empleados.
 - Contraseñas de usuario cifradas con `spring-security-crypto` (`PasswordEncoder`).
-- `customers` y `employees` extienden un `user` existente mediante clave compartida (`user_id`).
+- `customers` y `employees` se registran en un solo paso: `POST /api/customers` y `POST /api/employees` crean el `user` (con clave compartida `user_id`) y su perfil en la misma transaccion, en vez de requerir un `userId` de un `user` creado antes por separado. Asi la invariante `user.role` acorde al perfil queda garantizada por construccion.
 - Tests unitarios de servicios con Mockito para `Branch`, `Customer`, `Employee`, `Category`, `Product`, `Ingredient` y `User`.
 - Tests de controlador con `MockMvc` para `branches`, `categories`, `products`, `ingredients`, `users`, `customers` y `employees`.
 - Tests de integracion end-to-end con Testcontainers (Postgres real + Flyway) para `branches`, y para los flujos criticos de catalogo (`categories` + `products`) y alta de usuarios (cifrado de contraseña, correo duplicado).
@@ -240,17 +240,29 @@ PUT    /api/customers/{userId}
 DELETE /api/customers/{userId}
 ```
 
-Request:
+Request de `POST` (registra el `user` con rol `CUSTOMER` y su perfil en un solo paso):
 
 ```json
 {
-  "userId": "b3f1c9d0-1234-4a2b-8b3e-0a1234567890",
+  "email": "ana@example.com",
+  "password": "SuperSecreta123",
+  "firstName": "Ana",
+  "lastName": "Lopez",
   "loyaltyPoints": 0,
   "birthDate": "1998-05-12"
 }
 ```
 
-Crea un perfil de cliente para un `user` ya existente (`userId`). `DELETE /api/customers/{userId}` desactiva el perfil con `active=false`.
+Request de `PUT` (solo datos del perfil, sin credenciales de login):
+
+```json
+{
+  "loyaltyPoints": 10,
+  "birthDate": "1998-05-12"
+}
+```
+
+`POST /api/customers` responde `409` si ya existe un `user` con ese correo. `DELETE /api/customers/{userId}` desactiva el perfil con `active=false`.
 
 ### Employees
 
@@ -262,19 +274,33 @@ PUT    /api/employees/{userId}
 DELETE /api/employees/{userId}
 ```
 
-Request:
+Request de `POST` (registra el `user` con el rol operativo indicado en `type` y su perfil en un solo paso):
 
 ```json
 {
-  "userId": "b3f1c9d0-1234-4a2b-8b3e-0a1234567890",
+  "email": "carlos@example.com",
+  "password": "SuperSecreta123",
+  "firstName": "Carlos",
+  "lastName": "Ruiz",
+  "type": "BARISTA",
   "branchId": "7c2e5a10-4321-4f9c-9a1b-0987654321ba",
   "position": "Barista",
-  "role": "BARISTA",
   "hireDate": "2026-01-15"
 }
 ```
 
-Crea un perfil de empleado para un `user` ya existente, asociado a una `branch`. `DELETE /api/employees/{userId}` desactiva el perfil con `active=false`.
+Request de `PUT` (solo datos del perfil y del rol operativo, sin credenciales de login; reasignar `type` sincroniza `user.role`):
+
+```json
+{
+  "type": "BARISTA",
+  "branchId": "7c2e5a10-4321-4f9c-9a1b-0987654321ba",
+  "position": "Barista",
+  "hireDate": "2026-01-15"
+}
+```
+
+`type` acepta cualquier rol operativo (`ADMIN`, `MANAGER`, `CASHIER`, `BARISTA`); `CUSTOMER` se rechaza con `400` (esa alta va por `/api/customers`). `POST /api/employees` responde `409` si ya existe un `user` con ese correo y `404` si `branchId` no existe. `DELETE /api/employees/{userId}` desactiva el perfil con `active=false`.
 
 ## Modelo De Dominio
 
@@ -309,6 +335,7 @@ Enums PostgreSQL:
 - Borrado logico consistente (`active=false`) en todas las entidades con CRUD expuesto.
 - Contraseñas cifradas con `spring-security-crypto`, nunca se guardan en texto plano.
 - Cobertura de tests unitarios, de controlador y de integracion (Testcontainers) para todos los CRUDs expuestos hasta ahora.
+- El alta de `customers` y `employees` registra el `user` en el mismo paso, eliminando por construccion el riesgo de un `user.role` desalineado con el perfil (ya no se referencia un `userId` de entrada que se pudiera desalinear).
 
 ### Riesgos Y Deuda Tecnica
 
@@ -317,6 +344,7 @@ Enums PostgreSQL:
 - No hay paginacion, filtros ni ordenamiento en listados.
 - No hay perfiles separados para `dev`, `test` y `prod`.
 - Los tests de integracion dependen de Docker disponible (Testcontainers); hay que asegurarlo en CI.
+- Falta un test de integracion (Testcontainers) para el flujo de registro de `customers`/`employees`; hoy solo esta cubierto con unitarios (Mockito) y de controlador (MockMvc).
 
 ## Siguientes Pasos Recomendados
 
@@ -358,4 +386,4 @@ Enums PostgreSQL:
 
 ## Prioridad Sugerida
 
-Con la brecha de tests en los CRUDs ya cerrada (`Category`, `Product`, `Ingredient`, `User` con tests unitarios y de controlador; flujos criticos de catalogo y alta de usuarios con tests de integracion), el proximo paso mas valioso es construir el flujo de ordenes y pagos, porque es el centro del negocio.
+Con la brecha de tests en los CRUDs ya cerrada (`Category`, `Product`, `Ingredient`, `User` con tests unitarios y de controlador; flujos criticos de catalogo y alta de usuarios con tests de integracion) y con el registro de `customers`/`employees` resuelto de raiz (ya no depende de un `userId` externo, por lo que la invariante `user.role` es imposible de romper), el proximo paso mas valioso es construir el flujo de ordenes y pagos, porque es el centro del negocio. Antes de eso, conviene cubrir el nuevo flujo de registro con un test de integracion (Testcontainers) end-to-end.

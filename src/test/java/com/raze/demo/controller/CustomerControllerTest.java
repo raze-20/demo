@@ -59,7 +59,7 @@ class CustomerControllerTest {
     @Test
     void create_retorna201_conCuerpoValido() throws Exception {
         UUID userId = UUID.randomUUID();
-        CustomerRequest request = new CustomerRequest(userId, 0, LocalDate.of(1998, 5, 12));
+        CustomerRequest request = new CustomerRequest("cliente@example.com", "password123", "Juan", "Perez", 0, LocalDate.of(1998, 5, 12));
         CustomerResponse response = new CustomerResponse(userId, "cliente@example.com", "Juan", "Perez", 0, LocalDate.of(1998, 5, 12));
         when(customerService.create(any(CustomerRequest.class))).thenReturn(response);
 
@@ -71,8 +71,9 @@ class CustomerControllerTest {
     }
 
     @Test
-    // @NotNull en userId debe rechazar la petición antes de tocar el service.
-    void create_retorna400_cuandoFaltaUserId() throws Exception {
+    // @NotBlank en email/password/firstName/lastName debe rechazar la petición antes de
+    // tocar el service.
+    void create_retorna400_cuandoFaltanCamposObligatorios() throws Exception {
         String invalidJson = """
                 {"loyaltyPoints":0,"birthDate":"1998-05-12"}
                 """;

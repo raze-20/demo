@@ -2,7 +2,10 @@ package com.raze.demo.service.impl;
 
 import com.raze.demo.dto.EmployeeRequest;
 import com.raze.demo.dto.EmployeeResponse;
+import com.raze.demo.dto.EmployeeUpdateRequest;
+import com.raze.demo.enums.UserRole;
 import com.raze.demo.exception.DuplicateResourceException;
+import com.raze.demo.exception.InvalidStateException;
 import com.raze.demo.exception.ResourceNotFoundException;
 import com.raze.demo.model.Branch;
 import com.raze.demo.model.Employee;
@@ -13,6 +16,7 @@ import com.raze.demo.repository.UserRepository;
 import com.raze.demo.service.EmployeeService;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,7 +25,8 @@ import java.util.UUID;
 
 /**
  * Servicio encargado de manejar la lógica de negocio para los empleados.
- * Un empleado extiende un {@link User} existente mediante clave compartida (user_id).
+ * El alta crea el {@link User} y su perfil de {@link Employee} en el mismo paso, asignando
+ * al usuario el rol operativo indicado como {@code type} (nunca {@code CUSTOMER}).
  */
 @Service
 @RequiredArgsConstructor
@@ -30,6 +35,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final EmployeeRepository employeeRepository;
     private final UserRepository userRepository;
     private final BranchRepository branchRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @Transactional(readOnly = true)
     public List<EmployeeResponse> findAll() {
@@ -45,37 +51,53 @@ public class EmployeeServiceImpl implements EmployeeService {
     }
 
     /**
-     * Crea un perfil de empleado para un usuario existente en una sucursal.
+     * Registra un nuevo empleado: crea su {@link User} (con rol {@code request.type()}) y,
+     * en la misma transacción, su perfil de {@link Employee} en la sucursal indicada.
      *
-     * @param request Datos del nuevo empleado
+     * @param request Datos del usuario y del perfil de empleado
      * @return {@link EmployeeResponse} con el empleado creado
-     * @throws ResourceNotFoundException si el usuario o la sucursal referenciados no existen
-     * @throws DuplicateResourceException si el usuario ya tiene un perfil de empleado
+     * @throws InvalidStateException si {@code type} es {@code CUSTOMER}
+     * @throws DuplicateResourceException si ya existe un usuario con el mismo correo
+     * @throws ResourceNotFoundException si la sucursal referenciada no existe
      */
     @Transactional
     public EmployeeResponse create(EmployeeRequest request) {
-        if (employeeRepository.existsById(request.userId())) {
-            throw new DuplicateResourceException("Employee already exists for user: " + request.userId());
-        }
+        validateEmployeeType(request.type());
+        ensureEmailIsAvailable(request.email());
+
+        User user = new User();
+        user.setEmail(request.email().trim());
+        user.setPasswordHash(passwordEncoder.encode(request.password()));
+        user.setFirstName(request.firstName());
+        user.setLastName(request.lastName());
+        user.setRole(request.type());
+        user = userRepository.save(user);
 
         Employee employee = new Employee();
-        employee.setUser(getUser(request.userId()));
+        employee.setUser(user);
         employee.setBranch(getBranch(request.branchId()));
         employee.setPosition(request.position());
-        employee.setRole(request.role());
+        employee.setRole(request.type().name());
         employee.setHireDate(request.hireDate());
         employee = employeeRepository.save(employee);
         return toResponse(employee);
     }
 
     @Transactional
-    public EmployeeResponse update(UUID userId, EmployeeRequest request) {
+    public EmployeeResponse update(UUID userId, EmployeeUpdateRequest request) {
+        validateEmployeeType(request.type());
+
         Employee employee = getEmployee(userId);
         employee.setBranch(getBranch(request.branchId()));
         employee.setPosition(request.position());
-        employee.setRole(request.role());
+        employee.setRole(request.type().name());
         employee.setHireDate(request.hireDate());
         employee = employeeRepository.save(employee);
+
+        User user = employee.getUser();
+        user.setRole(request.type());
+        userRepository.save(user);
+
         return toResponse(employee);
     }
 
@@ -86,14 +108,22 @@ public class EmployeeServiceImpl implements EmployeeService {
         employeeRepository.save(employee);
     }
 
+    private void validateEmployeeType(UserRole type) {
+        if (type == UserRole.CUSTOMER) {
+            throw new InvalidStateException("Employee type cannot be CUSTOMER: use /api/customers instead");
+        }
+    }
+
+    private void ensureEmailIsAvailable(String email) {
+        userRepository.findByEmailIgnoreCase(email.strip())
+                .ifPresent(user -> {
+                    throw new DuplicateResourceException("User already exists: " + email);
+                });
+    }
+
     private Employee getEmployee(UUID userId) {
         return employeeRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee not found: " + userId));
-    }
-
-    private User getUser(UUID userId) {
-        return userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userId));
     }
 
     private Branch getBranch(UUID branchId) {

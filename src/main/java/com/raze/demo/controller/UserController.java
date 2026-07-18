@@ -38,7 +38,6 @@ public class UserController {
      */
     @GetMapping
     public List<UserResponse> findAll() {
-        // TODO change the query to findByActiveTrue;
         return service.findAll();
     }
 

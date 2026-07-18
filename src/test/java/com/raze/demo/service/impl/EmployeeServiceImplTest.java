@@ -21,7 +21,10 @@ import java.util.UUID;
 
 import com.raze.demo.dto.EmployeeRequest;
 import com.raze.demo.dto.EmployeeResponse;
+import com.raze.demo.dto.EmployeeUpdateRequest;
+import com.raze.demo.enums.UserRole;
 import com.raze.demo.exception.DuplicateResourceException;
+import com.raze.demo.exception.InvalidStateException;
 import com.raze.demo.exception.ResourceNotFoundException;
 import com.raze.demo.model.Branch;
 import com.raze.demo.model.Employee;
@@ -29,38 +32,31 @@ import com.raze.demo.model.User;
 import com.raze.demo.repository.BranchRepository;
 import com.raze.demo.repository.EmployeeRepository;
 import com.raze.demo.repository.UserRepository;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 /**
  * TEST DE UNIDAD (service layer) — mismo patrón que {@link CustomerServiceImplTest} y
  * {@link BranchServiceImplTest}: Mockito puro, sin Spring, sin base de datos.
  *
- * EmployeeServiceImpl depende de TRES repositorios (Employee, User, Branch), así que hay
- * tres @Mock. @InjectMocks los combina todos al construir el service real, en el orden
- * que espera su constructor (generado por @RequiredArgsConstructor).
+ * EmployeeServiceImpl ahora registra el User y el Employee en el mismo create(), así que
+ * depende de CUATRO colaboradores (Employee/User/Branch repos + PasswordEncoder).
  */
 @ExtendWith(MockitoExtension.class)
-// Extensión de JUnit 5 que inicializa los mocks (@Mock) y arma el objeto bajo prueba
-// (@InjectMocks) antes de cada test. Es puramente un mecanismo de Mockito, no involucra
-// a Spring en ningún momento.
 class EmployeeServiceImplTest {
 
     @Mock
-    // Repositorio "falso" del propio Employee: sin esto no podríamos simular
-    // "ya existe" / "no existe" sin tocar una base de datos real.
     private EmployeeRepository employeeRepository;
 
     @Mock
-    // Se usa para simular la búsqueda del User al que se le crea el perfil de empleado.
     private UserRepository userRepository;
 
     @Mock
-    // Se usa para simular la búsqueda de la sucursal (Branch) a la que se asigna el empleado.
     private BranchRepository branchRepository;
 
+    @Mock
+    private PasswordEncoder passwordEncoder;
+
     @InjectMocks
-    // Instancia real de EmployeeServiceImpl con los tres mocks de arriba inyectados.
-    // Esto es lo que realmente estamos probando: su lógica (validaciones, orquestación),
-    // no los repositorios (esos están falseados a propósito).
     private EmployeeServiceImpl employeeService;
 
     private UUID employeeId;
@@ -70,9 +66,6 @@ class EmployeeServiceImplTest {
     private Employee employee;
 
     @BeforeEach
-    // Corre antes de cada @Test para que ningún test reutilice (o corrompa) el estado
-    // dejado por otro. Aquí se arma el "mundo" mínimo: un User, una Branch y un Employee
-    // que los conecta a ambos.
     void setUp() {
         employeeId = UUID.randomUUID();
         branchId = UUID.randomUUID();
@@ -82,6 +75,7 @@ class EmployeeServiceImplTest {
         user.setEmail("empleado@example.com");
         user.setFirstName("Ana");
         user.setLastName("Gomez");
+        user.setRole(UserRole.BARISTA);
 
         branch = new Branch();
         branch.setId(branchId);
@@ -98,14 +92,12 @@ class EmployeeServiceImplTest {
         employee.setUser(user);
         employee.setBranch(branch);
         employee.setPosition("Barista");
-        employee.setRole("STAFF");
+        employee.setRole("BARISTA");
         employee.setHireDate(LocalDate.of(2022, 3, 1));
         employee.setActive(true);
     }
 
     @Test
-    // Solo necesita: el mock devolviendo datos de prueba (Arrange), invocar el método
-    // real del service (Act), y comprobar el resultado + la interacción (Assert).
     void findAll_devuelveSoloEmployeesActivos() {
         when(employeeRepository.findByActiveTrue()).thenReturn(List.of(employee));
 
@@ -136,13 +128,15 @@ class EmployeeServiceImplTest {
     }
 
     @Test
-    // Aquí se configuran los TRES mocks porque create() del service consulta los
-    // tres repositorios en secuencia (existe empleado, existe user, existe branch)
-    // antes de guardar.
-    void create_guardaYRetornaEmployee_cuandoUsuarioYSucursalExisten() {
-        EmployeeRequest request = new EmployeeRequest(employeeId, branchId, "Barista", "STAFF", LocalDate.of(2022, 3, 1));
-        when(employeeRepository.existsById(employeeId)).thenReturn(false);
-        when(userRepository.findById(employeeId)).thenReturn(Optional.of(user));
+    // create() ahora registra el User (email libre, password hasheado) y el Employee en el
+    // mismo paso, así que hay que simular email disponible, hash y la sucursal.
+    void create_registraUsuarioYEmployee_cuandoDatosSonValidos() {
+        EmployeeRequest request = new EmployeeRequest(
+                "empleado@example.com", "password123", "Ana", "Gomez",
+                UserRole.BARISTA, branchId, "Barista", LocalDate.of(2022, 3, 1));
+        when(userRepository.findByEmailIgnoreCase("empleado@example.com")).thenReturn(Optional.empty());
+        when(passwordEncoder.encode("password123")).thenReturn("hashed");
+        when(userRepository.save(any(User.class))).thenReturn(user);
         when(branchRepository.findById(branchId)).thenReturn(Optional.of(branch));
         when(employeeRepository.save(any(Employee.class))).thenReturn(employee);
 
@@ -150,42 +144,45 @@ class EmployeeServiceImplTest {
 
         assertThat(result).isNotNull();
         assertThat(result.userId()).isEqualTo(employeeId);
+        verify(userRepository).save(any(User.class));
         verify(employeeRepository).save(any(Employee.class));
     }
 
     @Test
-    void create_lanzaExcepcion_cuandoUsuarioYaTieneEmployee() {
-        EmployeeRequest request = new EmployeeRequest(employeeId, branchId, "Barista", "STAFF", LocalDate.of(2022, 3, 1));
-        when(employeeRepository.existsById(employeeId)).thenReturn(true);
+    void create_lanzaExcepcion_cuandoTypeEsCustomer() {
+        EmployeeRequest request = new EmployeeRequest(
+                "empleado@example.com", "password123", "Ana", "Gomez",
+                UserRole.CUSTOMER, branchId, "Barista", LocalDate.of(2022, 3, 1));
+
+        assertThrows(InvalidStateException.class, () -> employeeService.create(request));
+    }
+
+    @Test
+    void create_lanzaExcepcion_cuandoEmailYaExiste() {
+        EmployeeRequest request = new EmployeeRequest(
+                "empleado@example.com", "password123", "Ana", "Gomez",
+                UserRole.BARISTA, branchId, "Barista", LocalDate.of(2022, 3, 1));
+        when(userRepository.findByEmailIgnoreCase("empleado@example.com")).thenReturn(Optional.of(user));
 
         assertThrows(DuplicateResourceException.class, () -> employeeService.create(request));
     }
 
     @Test
-    void create_lanzaExcepcion_cuandoUsuarioNoExiste() {
-        EmployeeRequest request = new EmployeeRequest(employeeId, branchId, "Barista", "STAFF", LocalDate.of(2022, 3, 1));
-        when(employeeRepository.existsById(employeeId)).thenReturn(false);
-        when(userRepository.findById(employeeId)).thenReturn(Optional.empty());
-
-        assertThrows(ResourceNotFoundException.class, () -> employeeService.create(request));
-    }
-
-    @Test
-    // Nótese que aquí SÍ se configura userRepository (encuentra al user) pero NO
-    // branchRepository (queda con su comportamiento por defecto de Mockito: devolver
-    // Optional.empty()), para forzar justo la rama de "sucursal no existe".
     void create_lanzaExcepcion_cuandoSucursalNoExiste() {
-        EmployeeRequest request = new EmployeeRequest(employeeId, branchId, "Barista", "STAFF", LocalDate.of(2022, 3, 1));
-        when(employeeRepository.existsById(employeeId)).thenReturn(false);
-        when(userRepository.findById(employeeId)).thenReturn(Optional.of(user));
+        EmployeeRequest request = new EmployeeRequest(
+                "empleado@example.com", "password123", "Ana", "Gomez",
+                UserRole.BARISTA, branchId, "Barista", LocalDate.of(2022, 3, 1));
+        when(userRepository.findByEmailIgnoreCase("empleado@example.com")).thenReturn(Optional.empty());
+        when(passwordEncoder.encode("password123")).thenReturn("hashed");
+        when(userRepository.save(any(User.class))).thenReturn(user);
         when(branchRepository.findById(branchId)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> employeeService.create(request));
     }
 
     @Test
-    void update_actualizaYRetornaEmployee_cuandoExiste() {
-        EmployeeRequest request = new EmployeeRequest(employeeId, branchId, "Supervisor", "MANAGER", LocalDate.of(2023, 6, 15));
+    void update_actualizaEmployeeYSincronizaRolDeUser_cuandoExiste() {
+        EmployeeUpdateRequest request = new EmployeeUpdateRequest(UserRole.MANAGER, branchId, "Supervisor", LocalDate.of(2023, 6, 15));
         when(employeeRepository.findById(employeeId)).thenReturn(Optional.of(employee));
         when(branchRepository.findById(branchId)).thenReturn(Optional.of(branch));
         when(employeeRepository.save(any(Employee.class))).thenReturn(employee);
@@ -194,13 +191,22 @@ class EmployeeServiceImplTest {
 
         assertThat(result.position()).isEqualTo("Supervisor");
         assertThat(result.role()).isEqualTo("MANAGER");
+        assertThat(user.getRole()).isEqualTo(UserRole.MANAGER);
         verify(employeeRepository).save(employee);
+        verify(userRepository).save(user);
+    }
+
+    @Test
+    void update_lanzaExcepcion_cuandoTypeEsCustomer() {
+        EmployeeUpdateRequest request = new EmployeeUpdateRequest(UserRole.CUSTOMER, branchId, "Supervisor", LocalDate.of(2023, 6, 15));
+
+        assertThrows(InvalidStateException.class, () -> employeeService.update(employeeId, request));
     }
 
     @Test
     void update_lanzaExcepcion_cuandoNoExiste() {
         UUID missingId = UUID.randomUUID();
-        EmployeeRequest request = new EmployeeRequest(missingId, branchId, "Supervisor", "MANAGER", LocalDate.of(2023, 6, 15));
+        EmployeeUpdateRequest request = new EmployeeUpdateRequest(UserRole.MANAGER, branchId, "Supervisor", LocalDate.of(2023, 6, 15));
         when(employeeRepository.findById(missingId)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> employeeService.update(missingId, request));

@@ -2,6 +2,7 @@ package com.raze.demo.controller;
 
 import com.raze.demo.dto.EmployeeRequest;
 import com.raze.demo.dto.EmployeeResponse;
+import com.raze.demo.enums.UserRole;
 import com.raze.demo.exception.ResourceNotFoundException;
 import com.raze.demo.service.EmployeeService;
 import org.junit.jupiter.api.Test;
@@ -64,7 +65,9 @@ class EmployeeControllerTest {
     void create_retorna201_conCuerpoValido() throws Exception {
         UUID userId = UUID.randomUUID();
         UUID branchId = UUID.randomUUID();
-        EmployeeRequest request = new EmployeeRequest(userId, branchId, "Barista", "BARISTA", LocalDate.of(2026, 1, 15));
+        EmployeeRequest request = new EmployeeRequest(
+                "empleado@example.com", "password123", "Ana", "Gomez",
+                UserRole.BARISTA, branchId, "Barista", LocalDate.of(2026, 1, 15));
         EmployeeResponse response = new EmployeeResponse(
                 userId, "empleado@example.com", "Ana", "Gomez",
                 branchId, "Sucursal Centro", "Barista", "BARISTA", LocalDate.of(2026, 1, 15));
@@ -78,8 +81,8 @@ class EmployeeControllerTest {
     }
 
     @Test
-    // @NotNull en userId/branchId/hireDate y @NotBlank en position/role deben rechazar la
-    // petición antes de tocar el service.
+    // @NotBlank/@NotNull en email/password/branchId/hireDate/type/position deben rechazar
+    // la petición antes de tocar el service.
     void create_retorna400_cuandoFaltanCamposObligatorios() throws Exception {
         String invalidJson = """
                 {"position":"Barista"}

@@ -2,6 +2,7 @@ package com.raze.demo.controller;
 
 import com.raze.demo.dto.CustomerRequest;
 import com.raze.demo.dto.CustomerResponse;
+import com.raze.demo.dto.CustomerUpdateRequest;
 import com.raze.demo.service.CustomerService;
 
 import jakarta.validation.Valid;
@@ -38,7 +39,6 @@ public class CustomerController {
      */
     @GetMapping
     public List<CustomerResponse> findAll() {
-        //TODO cambiar a findByActiveTrue;
         return service.findAll();
     }
 
@@ -54,9 +54,10 @@ public class CustomerController {
     }
 
     /**
-     * Crea un perfil de cliente para un usuario existente.
+     * Registra un nuevo cliente: crea su usuario (rol {@code CUSTOMER}) y su perfil de
+     * cliente en un solo paso.
      *
-     * @param request Datos del nuevo cliente
+     * @param request Datos del usuario y del perfil de cliente
      * @return {@link ResponseEntity} con el cliente creado
      */
     @PostMapping
@@ -73,7 +74,7 @@ public class CustomerController {
      * @return {@link CustomerResponse} con los datos actualizados
      */
     @PutMapping("/{userId}")
-    public CustomerResponse update(@PathVariable UUID userId, @Valid @RequestBody CustomerRequest request) {
+    public CustomerResponse update(@PathVariable UUID userId, @Valid @RequestBody CustomerUpdateRequest request) {
         return service.update(userId, request);
     }
 
