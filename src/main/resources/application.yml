@@ -13,3 +13,6 @@ spring:
   flyway:
     enabled: true
     baseline-on-migrate: true
+
+app:
+  tax-rate: 0.16

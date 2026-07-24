@@ -302,6 +302,59 @@ Request de `PUT` (solo datos del perfil y del rol operativo, sin credenciales de
 
 `type` acepta cualquier rol operativo (`ADMIN`, `MANAGER`, `CASHIER`, `BARISTA`); `CUSTOMER` se rechaza con `400` (esa alta va por `/api/customers`). `POST /api/employees` responde `409` si ya existe un `user` con ese correo y `404` si `branchId` no existe. `DELETE /api/employees/{userId}` desactiva el perfil con `active=false`.
 
+### Orders (flujo de ventas)
+
+```text
+GET    /api/orders
+GET    /api/orders/{id}
+POST   /api/orders
+POST   /api/orders/{orderId}/items
+DELETE /api/orders/{orderId}/items/{itemId}
+PATCH  /api/orders/{orderId}/status
+POST   /api/orders/{orderId}/payments
+```
+
+Request de `POST /api/orders` (crea la orden vacia en estado `PENDING`; `customerId` es opcional):
+
+```json
+{
+  "branchId": "7c2e5a10-4321-4f9c-9a1b-0987654321ba",
+  "employeeId": "a1b2c3d4-1111-2222-3333-444455556666",
+  "customerId": null
+}
+```
+
+Request de `POST /api/orders/{orderId}/items` (agrega un producto; el precio se toma de `Product.basePrice` en ese instante y queda congelado en el item, sin importar que el precio del producto cambie despues; `quantity` acepta de 1 a 500):
+
+```json
+{
+  "productId": "b2c3d4e5-2222-3333-4444-555566667777",
+  "quantity": 2,
+  "notes": "sin azucar"
+}
+```
+
+Request de `PATCH /api/orders/{orderId}/status` (transiciones manuales del staff; `PAID` nunca se setea aqui, solo la dispara un pago que cubre el total):
+
+```json
+{
+  "status": "PREPARING"
+}
+```
+
+Transiciones validas: `PENDING -> CANCELLED`, `PAID -> PREPARING`, `PAID -> CANCELLED`, `PREPARING -> DELIVERED`, `PREPARING -> CANCELLED`. `DELIVERED` y `CANCELLED` son terminales.
+
+Request de `POST /api/orders/{orderId}/payments` (admite varios pagos parciales con distinto metodo por orden; `amount` acepta hasta 8 digitos enteros y 2 decimales):
+
+```json
+{
+  "method": "CASH",
+  "amount": 100.00
+}
+```
+
+Subtotal, impuestos (`app.tax-rate`, default `0.16`) y total se recalculan en cada alta/baja de item. Los items y el estado solo se pueden modificar mientras la orden este `PENDING`; cuando la suma de los pagos cubre el total, la orden pasa automaticamente a `PAID`. Un pago que exceda el saldo pendiente responde `400`. Si dos operaciones concurrentes chocan sobre la misma orden (bloqueo optimista via `version`), la que pierde la carrera responde `409` y debe reintentarse.
+
 ## Modelo De Dominio
 
 La migracion inicial define estas areas:
@@ -336,10 +389,13 @@ Enums PostgreSQL:
 - Contraseñas cifradas con `spring-security-crypto`, nunca se guardan en texto plano.
 - Cobertura de tests unitarios, de controlador y de integracion (Testcontainers) para todos los CRUDs expuestos hasta ahora.
 - El alta de `customers` y `employees` registra el `user` en el mismo paso, eliminando por construccion el riesgo de un `user.role` desalineado con el perfil (ya no se referencia un `userId` de entrada que se pudiera desalinear).
+- `Order` usa bloqueo optimista (columna `version`): dos escrituras concurrentes sobre la misma orden (dos pagos, o un pago y un cambio de estado) nunca se pisan en silencio, la segunda recibe `409 Conflict` para reintentar.
+- `GlobalExceptionHandler` tambien cubre violaciones de integridad de datos, conflictos de bloqueo optimista y JSON malformado con el mismo esquema `ApiError`; cualquier excepcion no anticipada responde `500` sin exponer el mensaje/stacktrace real (que si queda en el log del servidor).
+- El flujo de ordenes/pagos registra logging de auditoria (`OrderServiceImpl`, via SLF4J): creacion de orden, alta/baja de items, cambios de estado, pagos registrados e intentos rechazados.
 
 ### Riesgos Y Deuda Tecnica
 
-- No hay endpoints para recetas, inventario, ordenes ni pagos.
+- No hay endpoints para recetas ni inventario.
 - No hay autenticacion/autorizacion real (login, JWT o sesiones); solo se cifran contraseñas.
 - No hay paginacion, filtros ni ordenamiento en listados.
 - No hay perfiles separados para `dev`, `test` y `prod`.
@@ -348,20 +404,13 @@ Enums PostgreSQL:
 
 ## Siguientes Pasos Recomendados
 
-1. Completar flujo de ventas
-   - Crear orden.
-   - Agregar items.
-   - Calcular subtotal, impuestos y total.
-   - Registrar pago.
-   - Cambiar estado de orden.
-
-2. Implementar inventario
+1. Implementar inventario
    - Recetas por producto.
    - Stock por sucursal.
    - Movimientos de inventario.
-   - Descuento automatico de ingredientes al vender productos.
+   - Descuento automatico de ingredientes al vender productos (ya existe el flujo de ventas en `/api/orders` que dispararia este descuento).
 
-3. Agregar seguridad
+2. Agregar seguridad
    - Spring Security.
    - Login.
    - JWT o sesiones.

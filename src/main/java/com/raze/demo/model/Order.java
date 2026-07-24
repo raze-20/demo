@@ -46,4 +46,8 @@ public class Order extends BaseEntity {
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private OffsetDateTime createdAt;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
 }
