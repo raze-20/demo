@@ -1,5 +1,7 @@
 # Coffee Demo API
 
+> **Rama:** `dev` — Desarrollo (perfil Spring activo por defecto: `dev`).
+
 Backend REST para gestionar una cafeteria. El proyecto esta construido con Spring Boot, PostgreSQL, JPA y Flyway. Actualmente cubre el modelo de datos principal y expone CRUDs para sucursales, categorias, productos, ingredientes, usuarios, clientes y empleados.
 
 ## Estado Actual
