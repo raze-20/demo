@@ -1,0 +1,4 @@
+logging:
+  level:
+    com.raze.demo: INFO
+    org.hibernate.SQL: WARN

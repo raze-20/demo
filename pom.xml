@@ -11,8 +11,8 @@
 	<groupId>com.raze</groupId>
 	<artifactId>demo</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name/>
-	<description/>
+	<name>coffee-demo</name>
+	<description>Coffee shop backend REST API (Spring Boot, PostgreSQL, JPA, Flyway) - branches, products, orders and payments.</description>
 	<url/>
 	<licenses>
 		<license/>
