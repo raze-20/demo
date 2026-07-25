@@ -155,6 +155,7 @@ El resto de la API (excepto `POST /api/customers`, que sigue publico para auto-r
 | Employees | `ADMIN`, `MANAGER` | `ADMIN`, `MANAGER` |
 | Customers | el propio usuario o `ADMIN`/`MANAGER` | alta publica (auto-registro); baja/edicion: el propio usuario o `ADMIN`/`MANAGER` |
 | Orders | staff (`ADMIN`/`MANAGER`/`CASHIER`/`BARISTA`) o el `customer` dueno de esa orden | `ADMIN`, `MANAGER`, `CASHIER`, `BARISTA` |
+| Recipes / Inventory | cualquier rol autenticado | `ADMIN`, `MANAGER` |
 
 Variables de entorno: `JWT_SECRET` (obligatoria en el perfil `prod`; la app no arranca si falta), `JWT_EXPIRATION_MINUTES` (opcional, default `60`).
 
@@ -395,6 +396,48 @@ Request de `POST /api/orders/{orderId}/payments` (admite varios pagos parciales 
 
 Subtotal, impuestos (`app.tax-rate`, default `0.16`) y total se recalculan en cada alta/baja de item. Los items y el estado solo se pueden modificar mientras la orden este `PENDING`; cuando la suma de los pagos cubre el total, la orden pasa automaticamente a `PAID`. Un pago que exceda el saldo pendiente responde `400`. Si dos operaciones concurrentes chocan sobre la misma orden (bloqueo optimista via `version`), la que pierde la carrera responde `409` y debe reintentarse.
 
+Al pasar la orden a `PAID`, se descuenta automaticamente el stock de ingredientes de la sucursal segun la receta de cada producto vendido (ver **Recipes** e **Inventory**); si algun ingrediente no tiene stock suficiente, el pago se rechaza con `400` y la transaccion completa se revierte (la orden sigue `PENDING`).
+
+### Recipes (receta por producto)
+
+```text
+GET    /api/products/{productId}/recipes
+POST   /api/products/{productId}/recipes
+DELETE /api/products/{productId}/recipes/{ingredientId}
+```
+
+Request de `POST` (agrega un ingrediente a la receta del producto, con la cantidad requerida por unidad vendida):
+
+```json
+{
+  "ingredientId": "b2c3d4e5-2222-3333-4444-555566667777",
+  "requiredQuantity": 150.000
+}
+```
+
+Escritura restringida a `ADMIN`/`MANAGER`. `POST` responde `409` si el ingrediente ya esta en la receta, y `404` si el producto o el ingrediente no existen.
+
+### Inventory (stock por sucursal)
+
+```text
+GET    /api/branches/{branchId}/inventory
+POST   /api/branches/{branchId}/inventory/movements
+GET    /api/branches/{branchId}/inventory/{ingredientId}/movements
+```
+
+Request de `POST .../movements` (registra un movimiento manual de stock; el usuario que lo registra se toma del token):
+
+```json
+{
+  "ingredientId": "b2c3d4e5-2222-3333-4444-555566667777",
+  "type": "INCOMING",
+  "quantity": 500.000,
+  "reason": "Compra semanal"
+}
+```
+
+`type` acepta `INCOMING` (suma stock), `WASTE` y `ADJUSTMENT` (restan stock). `SALE` se rechaza con `400`: esos movimientos solo los genera automaticamente el pago de una orden. Registrar movimientos esta restringido a `ADMIN`/`MANAGER`. Un `WASTE`/`ADJUSTMENT` que deje el stock negativo responde `400`.
+
 ## Modelo De Dominio
 
 La migracion inicial define estas areas:
@@ -433,10 +476,10 @@ Enums PostgreSQL:
 - `GlobalExceptionHandler` tambien cubre violaciones de integridad de datos, conflictos de bloqueo optimista y JSON malformado con el mismo esquema `ApiError`; cualquier excepcion no anticipada responde `500` sin exponer el mensaje/stacktrace real (que si queda en el log del servidor).
 - El flujo de ordenes/pagos registra logging de auditoria (`OrderServiceImpl`, via SLF4J): creacion de orden, alta/baja de items, cambios de estado, pagos registrados e intentos rechazados.
 - Autenticacion/autorizacion real con Spring Security + JWT sin estado (`POST /api/auth/login`); todos los endpoints previos ahora exigen rol via `@PreAuthorize`/`@PostAuthorize`, con reglas de "dueño del recurso" para `customers` y `orders`.
+- Inventario completo: receta (bill of materials) por producto, stock por sucursal con movimientos auditables (`INCOMING`/`WASTE`/`ADJUSTMENT`), y descuento automatico de ingredientes al pagar una orden (movimiento `SALE`), todo dentro de la misma transaccion del pago: si el stock no alcanza, el pago se revierte por completo.
 
 ### Riesgos Y Deuda Tecnica
 
-- No hay endpoints para recetas ni inventario.
 - No hay paginacion, filtros ni ordenamiento en listados.
 - No hay perfiles separados para `dev`, `test` y `prod`.
 - Los tests de integracion dependen de Docker disponible (Testcontainers); hay que asegurarlo en CI.
@@ -444,27 +487,21 @@ Enums PostgreSQL:
 
 ## Siguientes Pasos Recomendados
 
-1. Implementar inventario
-   - Recetas por producto.
-   - Stock por sucursal.
-   - Movimientos de inventario.
-   - Descuento automatico de ingredientes al vender productos (dispara desde `/api/orders`, al confirmarse el pago).
-
-2. Mejorar API publica
+1. Mejorar API publica
    - Paginacion en `GET`.
    - Filtros por `active`, categoria, sucursal o nombre.
    - OpenAPI/Swagger.
    - Versionado de API (`/api/v1/...`).
 
-3. Separar configuraciones
+2. Separar configuraciones
    - `application-test.yml`
    - Variables de entorno obligatorias para produccion (mas alla de `JWT_SECRET`, ya requerida).
 
-4. Preparar entrega
+3. Preparar entrega
    - Dockerfile para la aplicacion.
    - Compose completo con app + database.
    - Configurar GitHub Actions (CI/CD) para compilar y correr pruebas en cada push.
 
 ## Prioridad Sugerida
 
-Con seguridad ya resuelta (Spring Security + JWT, autorizacion por rol en todos los endpoints) y el flujo de ordenes/pagos ya construido y endurecido (bloqueo optimista, manejo de errores, logging), el proximo paso mas valioso es implementar inventario: es lo unico que falta para que el flujo de ventas descuente ingredientes automaticamente, y las entidades (`Recipe`, `BranchInventory`, `InventoryMovement`) ya existen en el esquema desde el inicio.
+Con seguridad e inventario ya resueltos, y el flujo de ordenes/pagos construido y endurecido, el dominio del negocio esta completo. Lo que queda es hardening operativo de la API: el proximo paso mas valioso es la paginacion/filtros en los listados (hoy devuelven la coleccion entera) junto con OpenAPI/Swagger para documentar la API ya crecida, antes de preparar la entrega (Dockerfile + CI).

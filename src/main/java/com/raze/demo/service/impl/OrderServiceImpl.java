@@ -24,6 +24,7 @@ import com.raze.demo.repository.OrderItemRepository;
 import com.raze.demo.repository.OrderRepository;
 import com.raze.demo.repository.PaymentRepository;
 import com.raze.demo.repository.ProductRepository;
+import com.raze.demo.service.InventoryService;
 import com.raze.demo.service.OrderService;
 
 import lombok.RequiredArgsConstructor;
@@ -67,6 +68,7 @@ public class OrderServiceImpl implements OrderService {
     private final EmployeeRepository employeeRepository;
     private final CustomerRepository customerRepository;
     private final ProductRepository productRepository;
+    private final InventoryService inventoryService;
 
     @Value("${app.tax-rate:0.16}")
     private BigDecimal taxRate;
@@ -175,6 +177,15 @@ public class OrderServiceImpl implements OrderService {
         log.info("Payment registered on order {}: method={}, amount={}", orderId, request.method(), request.amount());
 
         if (alreadyPaid.add(request.amount()).compareTo(order.getTotal()) >= 0) {
+            List<OrderItem> items = orderItemRepository.findByOrderId(orderId);
+            if (!items.isEmpty()) {
+                UUID performedByUserId = order.getEmployee().getUser().getId();
+                for (OrderItem item : items) {
+                    inventoryService.discountForSale(
+                            order.getBranch().getId(), item.getProduct().getId(), item.getQuantity(), orderId, performedByUserId);
+                }
+            }
+
             order.setStatus(OrderStatus.PAID);
             orderRepository.save(order);
             log.info("Order {} fully paid, status changed to PAID", orderId);
