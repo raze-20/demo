@@ -10,6 +10,7 @@ import com.raze.demo.enums.PaymentMethod;
 import com.raze.demo.exception.InvalidStateException;
 import com.raze.demo.exception.ResourceNotFoundException;
 import com.raze.demo.model.Order;
+import com.raze.demo.security.JwtService;
 import com.raze.demo.service.OrderService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +18,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
@@ -36,6 +38,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * TEST DE "SLICE" (capa web) — mismo patrón que {@link ProductControllerTest}.
  */
 @WebMvcTest(OrderController.class)
+@WithMockUser(roles = "ADMIN")
 class OrderControllerTest {
 
     @Autowired
@@ -46,6 +49,9 @@ class OrderControllerTest {
 
     @MockitoBean
     private OrderService orderService;
+
+    @MockitoBean
+    private JwtService jwtService;
 
     private OrderResponse sampleResponse(UUID id, OrderStatus status) {
         return new OrderResponse(

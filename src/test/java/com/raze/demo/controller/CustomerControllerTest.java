@@ -3,11 +3,13 @@ package com.raze.demo.controller;
 import com.raze.demo.dto.CustomerRequest;
 import com.raze.demo.dto.CustomerResponse;
 import com.raze.demo.exception.ResourceNotFoundException;
+import com.raze.demo.security.JwtService;
 import com.raze.demo.service.CustomerService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
@@ -25,6 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * {@code /{userId}} en vez de {@code /{id}} porque Customer comparte clave primaria con User.
  */
 @WebMvcTest(CustomerController.class)
+@WithMockUser(roles = "ADMIN")
 class CustomerControllerTest {
 
     @Autowired
@@ -35,6 +38,9 @@ class CustomerControllerTest {
 
     @MockitoBean
     private CustomerService customerService;
+
+    @MockitoBean
+    private JwtService jwtService;
 
     @Test
     void getById_retorna200_conCustomer() throws Exception {

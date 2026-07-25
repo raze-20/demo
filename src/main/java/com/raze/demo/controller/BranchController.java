@@ -7,6 +7,7 @@ import com.raze.demo.service.BranchService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -58,6 +59,7 @@ public class BranchController {
      * @param request Datos de la nueva sucursal
      * @return {@link ResponseEntity} con la respuesta creada y ubicación
      */
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     @PostMapping
     public ResponseEntity<BranchResponse> create(@Valid @RequestBody BranchRequest request) {
         BranchResponse response = branchService.create(request);
@@ -71,6 +73,7 @@ public class BranchController {
      * @param request Nuevos datos de la sucursal
      * @return {@link BranchResponse} con los datos actualizados
      */
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     @PutMapping("/{id}")
     public BranchResponse update(@PathVariable UUID id, @Valid @RequestBody BranchRequest request) {
         return branchService.update(id, request);
@@ -82,6 +85,7 @@ public class BranchController {
      * @param id Identificador UUID de la sucursal a eliminar
      * @return {@link ResponseEntity} sin contenido
      */
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         branchService.delete(id);

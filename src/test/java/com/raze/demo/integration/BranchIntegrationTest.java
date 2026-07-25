@@ -11,8 +11,9 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-        import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
  * TEST DE INTEGRACIÓN COMPLETO — el más lento y el más "real" de los tres tipos.
@@ -72,7 +73,10 @@ class BranchIntegrationTest {
 
         // POST real: pasa por Bean Validation, el controller real, el service real
         // (que efectivamente hace INSERT en Postgres) y devuelve la fila ya creada.
+        // .with(user(...).roles("ADMIN")) simula un ADMIN autenticado sin pasar por login
+        // real (eso ya se cubre en AuthIntegrationTest); el endpoint ahora exige auth.
         mockMvc.perform(post("/api/branches")
+                        .with(user("admin").roles("ADMIN"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json))
                 .andExpect(status().isCreated())
@@ -81,7 +85,7 @@ class BranchIntegrationTest {
         // GET real: consulta de nuevo Postgres (SELECT ... WHERE active = true) y
         // confirma que la sucursal recién creada sí quedó visible ahí. Este segundo
         // paso es justo el que reveló que Branch.active quedaba en false por defecto.
-        mockMvc.perform(get("/api/branches"))
+        mockMvc.perform(get("/api/branches").with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].name").value("Sucursal Sur"));
     }

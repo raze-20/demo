@@ -2,11 +2,13 @@ package com.raze.demo.controller;
 
 import com.raze.demo.dto.BranchRequest;
 import com.raze.demo.dto.BranchResponse;
+import com.raze.demo.security.JwtService;
 import com.raze.demo.service.BranchService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
@@ -34,6 +36,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 // Le dice a Spring Boot Test: "arranca un contexto mínimo, solo con lo necesario para
 // probar BranchController" (MVC + serialización + validación). No registra
 // BranchServiceImpl, BranchRepository, ni ningún bean de acceso a datos.
+// @WithMockUser inyecta un principal autenticado (rol ADMIN, satisface cualquier regla de
+// autorización de la app) sin pasar por login/JWT real.
+@WithMockUser(roles = "ADMIN")
 class BranchControllerTest {
 
     @Autowired
@@ -54,6 +59,13 @@ class BranchControllerTest {
     // del contexto de Spring (a diferencia de @Mock, que es un mock "suelto" fuera de
     // cualquier contenedor). Así el controller se puede construir igual que en producción.
     private BranchService branchService;
+
+    @MockitoBean
+    // Spring Security se auto-configura para este slice porque spring-boot-starter-security
+    // está en el classpath; SecurityConfig necesita poder construir JwtAuthenticationFilter,
+    // que depende de JwtService. Este mock nunca se invoca en estos tests (@WithMockUser
+    // salta directo al SecurityContext), solo hace falta para que el contexto arranque.
+    private JwtService jwtService;
 
     @Test
     // Para correr necesita: (1) el contexto de Spring ya arrancado por @WebMvcTest,

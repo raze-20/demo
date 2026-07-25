@@ -7,6 +7,7 @@ import com.raze.demo.service.ProductService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -58,6 +59,7 @@ public class ProductController {
      * @param request Datos del producto a crear
      * @return {@link ResponseEntity} con el producto creado y el estado HTTP 201 Created
      */
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     @PostMapping
     public ResponseEntity<ProductResponse> create(@Valid @RequestBody ProductRequest request) {
         ProductResponse response = productService.create(request);
@@ -73,6 +75,7 @@ public class ProductController {
      * @param request Nuevos datos del producto
      * @return {@link ProductResponse} con los datos actualizados
      */
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     @PutMapping("/{id}")
     public ProductResponse update(@PathVariable UUID id, @Valid @RequestBody ProductRequest request) {
         return productService.update(id, request);
@@ -84,6 +87,7 @@ public class ProductController {
      * @param id Identificador UUID del producto a eliminar
      * @return {@link ResponseEntity} vacío con estado HTTP 204 No Content
      */
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         productService.delete(id);

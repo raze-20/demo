@@ -120,6 +120,44 @@ Empaquetar sin pruebas:
 
 ## Endpoints Actuales
 
+### Auth
+
+```text
+POST   /api/auth/login
+```
+
+Request:
+
+```json
+{
+  "email": "ana@example.com",
+  "password": "SuperSecreta123"
+}
+```
+
+Response (`200`):
+
+```json
+{
+  "token": "eyJhbGciOiJIUzUxMiJ9...",
+  "tokenType": "Bearer",
+  "expiresInMinutes": 60,
+  "role": "ADMIN"
+}
+```
+
+El resto de la API (excepto `POST /api/customers`, que sigue publico para auto-registro) requiere el header `Authorization: Bearer <token>`. Sin token responde `401`; con un rol sin permiso responde `403`. Autorizacion por rol:
+
+| Recurso | Lectura | Escritura |
+|---|---|---|
+| Branches / Categories / Products / Ingredients | cualquier rol autenticado | `ADMIN`, `MANAGER` |
+| Users | `ADMIN` | `ADMIN` |
+| Employees | `ADMIN`, `MANAGER` | `ADMIN`, `MANAGER` |
+| Customers | el propio usuario o `ADMIN`/`MANAGER` | alta publica (auto-registro); baja/edicion: el propio usuario o `ADMIN`/`MANAGER` |
+| Orders | staff (`ADMIN`/`MANAGER`/`CASHIER`/`BARISTA`) o el `customer` dueno de esa orden | `ADMIN`, `MANAGER`, `CASHIER`, `BARISTA` |
+
+Variables de entorno: `JWT_SECRET` (obligatoria en el perfil `prod`; la app no arranca si falta), `JWT_EXPIRATION_MINUTES` (opcional, default `60`).
+
 ### Branches
 
 ```text
@@ -394,11 +432,11 @@ Enums PostgreSQL:
 - `Order` usa bloqueo optimista (columna `version`): dos escrituras concurrentes sobre la misma orden (dos pagos, o un pago y un cambio de estado) nunca se pisan en silencio, la segunda recibe `409 Conflict` para reintentar.
 - `GlobalExceptionHandler` tambien cubre violaciones de integridad de datos, conflictos de bloqueo optimista y JSON malformado con el mismo esquema `ApiError`; cualquier excepcion no anticipada responde `500` sin exponer el mensaje/stacktrace real (que si queda en el log del servidor).
 - El flujo de ordenes/pagos registra logging de auditoria (`OrderServiceImpl`, via SLF4J): creacion de orden, alta/baja de items, cambios de estado, pagos registrados e intentos rechazados.
+- Autenticacion/autorizacion real con Spring Security + JWT sin estado (`POST /api/auth/login`); todos los endpoints previos ahora exigen rol via `@PreAuthorize`/`@PostAuthorize`, con reglas de "dueño del recurso" para `customers` y `orders`.
 
 ### Riesgos Y Deuda Tecnica
 
 - No hay endpoints para recetas ni inventario.
-- No hay autenticacion/autorizacion real (login, JWT o sesiones); solo se cifran contraseñas.
 - No hay paginacion, filtros ni ordenamiento en listados.
 - No hay perfiles separados para `dev`, `test` y `prod`.
 - Los tests de integracion dependen de Docker disponible (Testcontainers); hay que asegurarlo en CI.
@@ -410,31 +448,23 @@ Enums PostgreSQL:
    - Recetas por producto.
    - Stock por sucursal.
    - Movimientos de inventario.
-   - Descuento automatico de ingredientes al vender productos (ya existe el flujo de ventas en `/api/orders` que dispararia este descuento).
+   - Descuento automatico de ingredientes al vender productos (dispara desde `/api/orders`, al confirmarse el pago).
 
-2. Agregar seguridad
-   - Spring Security.
-   - Login.
-   - JWT o sesiones.
-   - Autorizacion por rol: `ADMIN`, `MANAGER`, `CASHIER`, `BARISTA`, `CUSTOMER`.
-
-4. Mejorar API publica
+2. Mejorar API publica
    - Paginacion en `GET`.
    - Filtros por `active`, categoria, sucursal o nombre.
    - OpenAPI/Swagger.
    - Versionado de API (`/api/v1/...`).
 
-5. Separar configuraciones
-   - `application-dev.yml`
+3. Separar configuraciones
    - `application-test.yml`
-   - `application-prod.yml`
-   - Variables de entorno obligatorias para produccion.
+   - Variables de entorno obligatorias para produccion (mas alla de `JWT_SECRET`, ya requerida).
 
-6. Preparar entrega
+4. Preparar entrega
    - Dockerfile para la aplicacion.
    - Compose completo con app + database.
    - Configurar GitHub Actions (CI/CD) para compilar y correr pruebas en cada push.
 
 ## Prioridad Sugerida
 
-Con la brecha de tests en los CRUDs ya cerrada (`Category`, `Product`, `Ingredient`, `User` con tests unitarios y de controlador; flujos criticos de catalogo y alta de usuarios con tests de integracion) y con el registro de `customers`/`employees` resuelto de raiz (ya no depende de un `userId` externo, por lo que la invariante `user.role` es imposible de romper), el proximo paso mas valioso es construir el flujo de ordenes y pagos, porque es el centro del negocio. Antes de eso, conviene cubrir el nuevo flujo de registro con un test de integracion (Testcontainers) end-to-end.
+Con seguridad ya resuelta (Spring Security + JWT, autorizacion por rol en todos los endpoints) y el flujo de ordenes/pagos ya construido y endurecido (bloqueo optimista, manejo de errores, logging), el proximo paso mas valioso es implementar inventario: es lo unico que falta para que el flujo de ventas descuente ingredientes automaticamente, y las entidades (`Recipe`, `BranchInventory`, `InventoryMovement`) ya existen en el esquema desde el inicio.

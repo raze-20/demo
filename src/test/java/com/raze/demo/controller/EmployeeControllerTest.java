@@ -4,11 +4,13 @@ import com.raze.demo.dto.EmployeeRequest;
 import com.raze.demo.dto.EmployeeResponse;
 import com.raze.demo.enums.UserRole;
 import com.raze.demo.exception.ResourceNotFoundException;
+import com.raze.demo.security.JwtService;
 import com.raze.demo.service.EmployeeService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
@@ -26,6 +28,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * {@code /{userId}} en vez de {@code /{id}} porque Employee comparte clave primaria con User.
  */
 @WebMvcTest(EmployeeController.class)
+@WithMockUser(roles = "ADMIN")
 class EmployeeControllerTest {
 
     @Autowired
@@ -36,6 +39,9 @@ class EmployeeControllerTest {
 
     @MockitoBean
     private EmployeeService employeeService;
+
+    @MockitoBean
+    private JwtService jwtService;
 
     @Test
     void getById_retorna200_conEmployee() throws Exception {

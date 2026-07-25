@@ -3,11 +3,13 @@ package com.raze.demo.controller;
 import com.raze.demo.dto.CategoryRequest;
 import com.raze.demo.dto.CategoryResponse;
 import com.raze.demo.exception.DuplicateResourceException;
+import com.raze.demo.security.JwtService;
 import com.raze.demo.service.CategoryService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
@@ -23,6 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * repositorio real.
  */
 @WebMvcTest(CategoryController.class)
+@WithMockUser(roles = "ADMIN")
 class CategoryControllerTest {
 
     @Autowired
@@ -33,6 +36,9 @@ class CategoryControllerTest {
 
     @MockitoBean
     private CategoryService categoryService;
+
+    @MockitoBean
+    private JwtService jwtService;
 
     @Test
     void getById_retorna200_conCategoria() throws Exception {

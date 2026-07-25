@@ -10,6 +10,8 @@ import com.raze.demo.service.OrderService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PostAuthorize;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -33,22 +35,26 @@ public class OrderController {
 
     private final OrderService orderService;
 
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','BARISTA')")
     @GetMapping
     public List<OrderResponse> findAll() {
         return orderService.findAll();
     }
 
+    @PostAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','BARISTA') or returnObject.customerId() == authentication.principal.id")
     @GetMapping("/{id}")
     public OrderResponse findById(@PathVariable UUID id) {
         return orderService.findById(id);
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','BARISTA')")
     @PostMapping
     public ResponseEntity<OrderResponse> create(@Valid @RequestBody OrderRequest request) {
         OrderResponse response = orderService.create(request);
         return ResponseEntity.created(URI.create("/api/orders/" + response.id())).body(response);
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','BARISTA')")
     @PostMapping("/{orderId}/items")
     public ResponseEntity<OrderResponse> addItem(
             @PathVariable UUID orderId,
@@ -58,12 +64,14 @@ public class OrderController {
         return ResponseEntity.created(URI.create("/api/orders/" + orderId)).body(response);
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','BARISTA')")
     @DeleteMapping("/{orderId}/items/{itemId}")
     public ResponseEntity<Void> removeItem(@PathVariable UUID orderId, @PathVariable UUID itemId) {
         orderService.removeItem(orderId, itemId);
         return ResponseEntity.noContent().build();
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','BARISTA')")
     @PatchMapping("/{orderId}/status")
     public OrderResponse updateStatus(
             @PathVariable UUID orderId,
@@ -72,6 +80,7 @@ public class OrderController {
         return orderService.updateStatus(orderId, request);
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','CASHIER','BARISTA')")
     @PostMapping("/{orderId}/payments")
     public ResponseEntity<OrderResponse> addPayment(
             @PathVariable UUID orderId,

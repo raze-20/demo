@@ -15,6 +15,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -51,6 +52,7 @@ class UserIntegrationTest {
         // POST real: pasa por Bean Validation, el controller real, el service real
         // (que llama al PasswordEncoder real) y un INSERT real contra Postgres.
         mockMvc.perform(post("/api/users")
+                        .with(user("admin").roles("ADMIN"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json))
                 .andExpect(status().isCreated())
@@ -79,6 +81,7 @@ class UserIntegrationTest {
                 """.formatted(email);
 
         mockMvc.perform(post("/api/users")
+                        .with(user("admin").roles("ADMIN"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json))
                 .andExpect(status().isCreated());
@@ -86,6 +89,7 @@ class UserIntegrationTest {
         // Mismo correo otra vez: el service real debe detectar el duplicado contra
         // Postgres (no solo contra un mock) y devolver 409.
         mockMvc.perform(post("/api/users")
+                        .with(user("admin").roles("ADMIN"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json))
                 .andExpect(status().isConflict());

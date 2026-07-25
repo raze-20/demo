@@ -3,11 +3,13 @@ package com.raze.demo.controller;
 import com.raze.demo.dto.ProductRequest;
 import com.raze.demo.dto.ProductResponse;
 import com.raze.demo.exception.ResourceNotFoundException;
+import com.raze.demo.security.JwtService;
 import com.raze.demo.service.ProductService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
@@ -21,9 +23,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
- * TEST DE "SLICE" (capa web) — mismo patrón que {@link BranchControllerTest}.
+ * TEST DE "SLICE" (capa web) — mismo patrón que {@link BranchControllerTest}. Con Spring
+ * Security en el classpath, el slice arma el filter chain real; @WithMockUser inyecta un
+ * principal autenticado sin pasar por login/JWT real, y JwtService se mockea solo para que
+ * el contexto pueda construir el SecurityFilterChain (no se invoca en estos tests).
  */
 @WebMvcTest(ProductController.class)
+@WithMockUser(roles = "ADMIN")
 class ProductControllerTest {
 
     @Autowired
@@ -34,6 +40,9 @@ class ProductControllerTest {
 
     @MockitoBean
     private ProductService productService;
+
+    @MockitoBean
+    private JwtService jwtService;
 
     @Test
     void getById_retorna200_conProducto() throws Exception {

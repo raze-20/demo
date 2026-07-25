@@ -4,11 +4,13 @@ import com.raze.demo.dto.UserRequest;
 import com.raze.demo.dto.UserResponse;
 import com.raze.demo.enums.UserRole;
 import com.raze.demo.exception.DuplicateResourceException;
+import com.raze.demo.security.JwtService;
 import com.raze.demo.service.UserService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
@@ -25,6 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * TEST DE "SLICE" (capa web) — mismo patrón que {@link BranchControllerTest}.
  */
 @WebMvcTest(UserController.class)
+@WithMockUser(roles = "ADMIN")
 class UserControllerTest {
 
     @Autowired
@@ -35,6 +38,9 @@ class UserControllerTest {
 
     @MockitoBean
     private UserService userService;
+
+    @MockitoBean
+    private JwtService jwtService;
 
     @Test
     void getById_retorna200_conUsuario() throws Exception {

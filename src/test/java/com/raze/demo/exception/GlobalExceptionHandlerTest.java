@@ -8,6 +8,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 
 import java.util.UUID;
 
@@ -75,6 +77,29 @@ class GlobalExceptionHandlerTest {
         ResponseEntity<ApiError> response = handler.handleMalformedJson(ex);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void handleAuthentication_retorna401_sinExponerDetalles() {
+        BadCredentialsException ex = new BadCredentialsException("Bad credentials for user ana@example.com");
+
+        ResponseEntity<ApiError> response = handler.handleAuthentication(ex);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(response.getBody().message()).doesNotContain("ana@example.com");
+    }
+
+    @Test
+    // Spring Security 7 lanza AuthorizationDeniedException (no la AccessDeniedException
+    // "clásica") desde @PreAuthorize/@PostAuthorize; si este handler no la capturara
+    // explícitamente, caería en el catch-all de Exception y devolvería 500 en vez de 403
+    // (bug real detectado por el test de integración de auth).
+    void handleAuthorizationDenied_retorna403() {
+        AuthorizationDeniedException ex = new AuthorizationDeniedException("Access Denied");
+
+        ResponseEntity<ApiError> response = handler.handleAuthorizationDenied(ex);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
     @Test

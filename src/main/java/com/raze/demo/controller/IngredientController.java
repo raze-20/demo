@@ -7,6 +7,7 @@ import com.raze.demo.service.IngredientService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -58,6 +59,7 @@ public class IngredientController {
      * @param request Datos del nuevo ingrediente
      * @return {@link ResponseEntity} con la respuesta creada
      */
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     @PostMapping
     public ResponseEntity<IngredientResponse> create(@Valid @RequestBody IngredientRequest request) {
         IngredientResponse response = service.create(request);
@@ -71,6 +73,7 @@ public class IngredientController {
      * @param request Nuevos datos del ingrediente
      * @return {@link IngredientResponse} con los datos actualizados
      */
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     @PutMapping("/{id}")
     public IngredientResponse update(@PathVariable UUID id, @Valid @RequestBody IngredientRequest request) {
         return service.update(id, request);
@@ -82,6 +85,7 @@ public class IngredientController {
      * @param id Identificador UUID del ingrediente a eliminar
      * @return {@link ResponseEntity} sin contenido
      */
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         service.delete(id);

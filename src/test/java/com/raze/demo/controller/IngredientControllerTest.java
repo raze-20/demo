@@ -3,11 +3,13 @@ package com.raze.demo.controller;
 import com.raze.demo.dto.IngredientRequest;
 import com.raze.demo.dto.IngredientResponse;
 import com.raze.demo.exception.ResourceNotFoundException;
+import com.raze.demo.security.JwtService;
 import com.raze.demo.service.IngredientService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
@@ -23,6 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * TEST DE "SLICE" (capa web) — mismo patrón que {@link BranchControllerTest}.
  */
 @WebMvcTest(IngredientController.class)
+@WithMockUser(roles = "ADMIN")
 class IngredientControllerTest {
 
     @Autowired
@@ -33,6 +36,9 @@ class IngredientControllerTest {
 
     @MockitoBean
     private IngredientService ingredientService;
+
+    @MockitoBean
+    private JwtService jwtService;
 
     @Test
     void getById_retorna200_conIngrediente() throws Exception {

@@ -6,6 +6,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.security.authorization.AuthorizationDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -58,6 +60,17 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiError> handleMalformedJson(HttpMessageNotReadableException ex) {
         return buildResponse(HttpStatus.BAD_REQUEST, "Malformed or invalid request body.", Map.of());
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<ApiError> handleAuthentication(AuthenticationException ex) {
+        log.warn("Authentication failed: {}", ex.getMessage());
+        return buildResponse(HttpStatus.UNAUTHORIZED, "Invalid email or password.", Map.of());
+    }
+
+    @ExceptionHandler(AuthorizationDeniedException.class)
+    public ResponseEntity<ApiError> handleAuthorizationDenied(AuthorizationDeniedException ex) {
+        return buildResponse(HttpStatus.FORBIDDEN, "You do not have permission to perform this action.", Map.of());
     }
 
     @ExceptionHandler(Exception.class)
