@@ -73,6 +73,12 @@ DB_PASSWORD: rootpassword
 
 `application.yml` usa `spring.jpa.hibernate.ddl-auto=validate`, por lo que Hibernate solo valida que las entidades coincidan con la base. El esquema se crea y evoluciona con Flyway.
 
+Perfiles Spring (se elige con `SPRING_PROFILES_ACTIVE`):
+
+- `dev` (default en la rama `dev`): logging verboso (`DEBUG` + SQL), secreto JWT de conveniencia por defecto.
+- `test`: se activa automaticamente al correr `mvnw test` (via surefire); logging minimo y secreto JWT de prueba. El datasource lo aporta Testcontainers.
+- `prod` (default en la rama `main`): logging `INFO`, y `DB_URL`/`DB_USERNAME`/`DB_PASSWORD` **obligatorias sin default** — la app no arranca si faltan (evita usar credenciales de desarrollo por accidente). `JWT_SECRET` tambien es obligatoria.
+
 ## Base De Datos
 
 Levantar PostgreSQL:
@@ -489,22 +495,17 @@ Enums PostgreSQL:
 
 ### Riesgos Y Deuda Tecnica
 
-- No hay perfil de test separado (`application-test.yml`); las credenciales de BD en `prod` todavia caen a un default inseguro si no se setean.
 - Los tests de integracion dependen de Docker disponible (Testcontainers); hay que asegurarlo en CI.
 - Falta un test de integracion (Testcontainers) para el flujo de registro de `customers`/`employees`; hoy solo esta cubierto con unitarios (Mockito) y de controlador (MockMvc).
 - No hay Dockerfile de la aplicacion ni pipeline de CI.
 
 ## Siguientes Pasos Recomendados
 
-1. Separar configuraciones
-   - `application-test.yml`
-   - Variables de entorno obligatorias para produccion (mas alla de `JWT_SECRET`, ya requerida).
-
-2. Preparar entrega
+1. Preparar entrega
    - Dockerfile para la aplicacion.
    - Compose completo con app + database.
    - Configurar GitHub Actions (CI/CD) para compilar y correr pruebas en cada push.
 
 ## Prioridad Sugerida
 
-Con seguridad, inventario y el pulido de la API (paginacion, filtros, versionado, OpenAPI) ya resueltos, el backend esta funcionalmente completo. Lo unico que queda es preparar la entrega: completar la separacion de configuracion por perfil (incluyendo variables obligatorias en `prod`) y empaquetar la app con un Dockerfile + `docker-compose` app+db, mas un pipeline de CI que compile y corra las pruebas en cada push.
+Con seguridad, inventario, el pulido de la API (paginacion, filtros, versionado, OpenAPI) y la separacion de configuracion por perfil ya resueltos, el backend esta funcionalmente completo. Lo unico que queda es empaquetar la app con un Dockerfile + `docker-compose` app+db, mas un pipeline de CI que compile y corra las pruebas en cada push.
