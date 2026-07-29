@@ -2,7 +2,7 @@
 
 > **Rama:** `dev` — Desarrollo (perfil Spring activo por defecto: `dev`).
 
-Backend REST para gestionar una cafeteria. El proyecto esta construido con Spring Boot, PostgreSQL, JPA y Flyway. Actualmente cubre el modelo de datos principal y expone CRUDs para sucursales, categorias, productos, ingredientes, usuarios, clientes y empleados.
+Backend REST para gestionar una cafeteria. El proyecto esta construido con Spring Boot, PostgreSQL, JPA y Flyway. Cubre el dominio completo del negocio: catalogo (sucursales, categorias, productos, ingredientes), usuarios/clientes/empleados, flujo de ventas (ordenes y pagos) e inventario (recetas y stock por sucursal con descuento automatico al vender). La API esta versionada (`/api/v1`), autenticada con JWT y autorizada por rol, paginada, documentada con OpenAPI/Swagger y empaquetada con Docker + CI.
 
 ## Estado Actual
 
@@ -79,23 +79,35 @@ Perfiles Spring (se elige con `SPRING_PROFILES_ACTIVE`):
 - `test`: se activa automaticamente al correr `mvnw test` (via surefire); logging minimo y secreto JWT de prueba. El datasource lo aporta Testcontainers.
 - `prod` (default en la rama `main`): logging `INFO`, y `DB_URL`/`DB_USERNAME`/`DB_PASSWORD` **obligatorias sin default** — la app no arranca si faltan (evita usar credenciales de desarrollo por accidente). `JWT_SECRET` tambien es obligatoria.
 
-## Base De Datos
+## Docker
 
-Levantar PostgreSQL:
+`docker-compose.yml` levanta dos servicios: `postgres-cafeteria` (Postgres 16, con healthcheck) y `app` (la aplicacion, construida desde el `Dockerfile` multi-stage). El servicio `app` espera a que la BD este sana (`depends_on: condition: service_healthy`) antes de arrancar.
 
-```powershell
-docker compose up -d
+Copiar la plantilla de variables y ajustarla (define `JWT_SECRET`, credenciales de BD, perfil):
+
+```bash
+cp .env.example .env
 ```
 
-El archivo `docker-compose.yml` crea:
+Levantar todo (app + base de datos):
 
-- Contenedor: `db_cafeteria`
-- Base: `cafeteria_db`
-- Usuario: `root`
-- Password: `rootpassword`
-- Puerto: `5432`
+```bash
+docker compose up -d --build
+```
 
-Flyway ejecuta `src/main/resources/db/migration/V1__init_schema.sql` al iniciar la aplicacion.
+La API queda en `http://localhost:8080` (Swagger en `http://localhost:8080/swagger-ui.html`). Flyway aplica las migraciones de `src/main/resources/db/migration/` al arrancar la app.
+
+Para levantar solo la base de datos (p. ej. corriendo la app desde el IDE):
+
+```bash
+docker compose up -d postgres-cafeteria
+```
+
+El `Dockerfile` es multi-stage: compila con `eclipse-temurin:25-jdk-alpine` usando el Maven Wrapper y corre el fat jar sobre `eclipse-temurin:25-jre-alpine` como usuario no-root.
+
+## Integracion Continua
+
+`.github/workflows/ci.yml` corre en cada push y pull request a `main`/`dev`: instala JDK 25 (Temurin), cachea `~/.m2` y ejecuta `./mvnw verify` (compila y corre toda la suite). Los runners de GitHub traen Docker, asi que los tests de integracion con Testcontainers funcionan sin configuracion extra.
 
 ## Ejecutar
 
@@ -492,20 +504,17 @@ Enums PostgreSQL:
 - Autenticacion/autorizacion real con Spring Security + JWT sin estado (`POST /api/v1/auth/login`); todos los endpoints previos ahora exigen rol via `@PreAuthorize`/`@PostAuthorize`, con reglas de "dueño del recurso" para `customers` y `orders`.
 - Inventario completo: receta (bill of materials) por producto, stock por sucursal con movimientos auditables (`INCOMING`/`WASTE`/`ADJUSTMENT`), y descuento automatico de ingredientes al pagar una orden (movimiento `SALE`), todo dentro de la misma transaccion del pago: si el stock no alcanza, el pago se revierte por completo.
 - API versionada (`/api/v1`), listados paginados (Spring Data `Page` con `page`/`size`/`sort`), filtros (`products?categoryId`, `orders?status`) y documentacion OpenAPI/Swagger (`/swagger-ui.html`, `/v3/api-docs`) con el esquema de seguridad JWT ya declarado.
+- Entrega lista: `Dockerfile` multi-stage (Temurin 25, usuario no-root), `docker-compose` con app + Postgres (healthcheck + `depends_on`), y CI en GitHub Actions que corre `./mvnw verify` (incluye Testcontainers) en cada push/PR.
 
 ### Riesgos Y Deuda Tecnica
 
-- Los tests de integracion dependen de Docker disponible (Testcontainers); hay que asegurarlo en CI.
 - Falta un test de integracion (Testcontainers) para el flujo de registro de `customers`/`employees`; hoy solo esta cubierto con unitarios (Mockito) y de controlador (MockMvc).
-- No hay Dockerfile de la aplicacion ni pipeline de CI.
+- El pipeline de CI compila y prueba, pero no publica la imagen a ningun registry ni despliega (fuera de alcance por ahora).
 
 ## Siguientes Pasos Recomendados
 
-1. Preparar entrega
-   - Dockerfile para la aplicacion.
-   - Compose completo con app + database.
-   - Configurar GitHub Actions (CI/CD) para compilar y correr pruebas en cada push.
+El roadmap de "calidad de produccion" (seguridad, inventario, API publica, configuracion por perfil y entrega) esta completo. Mejoras opcionales a futuro:
 
-## Prioridad Sugerida
-
-Con seguridad, inventario, el pulido de la API (paginacion, filtros, versionado, OpenAPI) y la separacion de configuracion por perfil ya resueltos, el backend esta funcionalmente completo. Lo unico que queda es empaquetar la app con un Dockerfile + `docker-compose` app+db, mas un pipeline de CI que compile y corra las pruebas en cada push.
+- Publicar la imagen Docker a un registry (ghcr.io) y agregar un job de despliegue al pipeline.
+- Cerrar la brecha de test de integracion del alta de `customers`/`employees`.
+- Refresh tokens / expiracion-renovacion de JWT, rate limiting, y observabilidad (Actuator + metricas).
