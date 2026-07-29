@@ -9,10 +9,10 @@ import com.raze.demo.repository.CategoryRepository;
 import com.raze.demo.service.CategoryService;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
 
 /**
  * Servicio encargado de manejar la lógica de negocio para las categorías.
@@ -29,11 +29,9 @@ public class CategoryServiceImpl implements CategoryService {
      * @return Lista de {@link CategoryResponse}
      */
     @Transactional(readOnly = true)
-    public List<CategoryResponse> findAll() {
-        return categoryRepository.findByActiveTrue()
-                .stream()
-                .map(this::toResponse)
-                .toList();
+    public Page<CategoryResponse> findAll(Pageable pageable) {
+        return categoryRepository.findByActiveTrue(pageable)
+                .map(this::toResponse);
     }
 
     /**

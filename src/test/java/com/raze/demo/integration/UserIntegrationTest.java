@@ -51,7 +51,7 @@ class UserIntegrationTest {
 
         // POST real: pasa por Bean Validation, el controller real, el service real
         // (que llama al PasswordEncoder real) y un INSERT real contra Postgres.
-        mockMvc.perform(post("/api/users")
+        mockMvc.perform(post("/api/v1/users")
                         .with(user("admin").roles("ADMIN"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json))
@@ -80,7 +80,7 @@ class UserIntegrationTest {
                 {"email":"%s","password":"SuperSecreta123","firstName":"Ana","lastName":"Lopez","role":"ADMIN"}
                 """.formatted(email);
 
-        mockMvc.perform(post("/api/users")
+        mockMvc.perform(post("/api/v1/users")
                         .with(user("admin").roles("ADMIN"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json))
@@ -88,7 +88,7 @@ class UserIntegrationTest {
 
         // Mismo correo otra vez: el service real debe detectar el duplicado contra
         // Postgres (no solo contra un mock) y devolver 409.
-        mockMvc.perform(post("/api/users")
+        mockMvc.perform(post("/api/v1/users")
                         .with(user("admin").roles("ADMIN"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json))

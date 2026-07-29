@@ -48,7 +48,7 @@ class CustomerControllerTest {
         CustomerResponse response = new CustomerResponse(userId, "cliente@example.com", "Juan", "Perez", 10, LocalDate.of(2000, 1, 1));
         when(customerService.findById(userId)).thenReturn(response);
 
-        mockMvc.perform(get("/api/customers/" + userId))
+        mockMvc.perform(get("/api/v1/customers/" + userId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.loyaltyPoints").value(10));
     }
@@ -58,7 +58,7 @@ class CustomerControllerTest {
         UUID userId = UUID.randomUUID();
         when(customerService.findById(userId)).thenThrow(new ResourceNotFoundException("Customer not found: " + userId));
 
-        mockMvc.perform(get("/api/customers/" + userId))
+        mockMvc.perform(get("/api/v1/customers/" + userId))
                 .andExpect(status().isNotFound());
     }
 
@@ -69,7 +69,7 @@ class CustomerControllerTest {
         CustomerResponse response = new CustomerResponse(userId, "cliente@example.com", "Juan", "Perez", 0, LocalDate.of(1998, 5, 12));
         when(customerService.create(any(CustomerRequest.class))).thenReturn(response);
 
-        mockMvc.perform(post("/api/customers")
+        mockMvc.perform(post("/api/v1/customers")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -84,7 +84,7 @@ class CustomerControllerTest {
                 {"loyaltyPoints":0,"birthDate":"1998-05-12"}
                 """;
 
-        mockMvc.perform(post("/api/customers")
+        mockMvc.perform(post("/api/v1/customers")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(invalidJson))
                 .andExpect(status().isBadRequest());
@@ -94,7 +94,7 @@ class CustomerControllerTest {
     void delete_retorna204() throws Exception {
         UUID userId = UUID.randomUUID();
 
-        mockMvc.perform(delete("/api/customers/" + userId))
+        mockMvc.perform(delete("/api/v1/customers/" + userId))
                 .andExpect(status().isNoContent());
     }
 }

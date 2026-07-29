@@ -4,12 +4,14 @@ import com.raze.demo.dto.CustomerRequest;
 import com.raze.demo.dto.CustomerResponse;
 import com.raze.demo.dto.CustomerUpdateRequest;
 
-import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
 import java.util.UUID;
 
 public interface CustomerService {
 
-    List<CustomerResponse> findAll();
+    Page<CustomerResponse> findAll(Pageable pageable);
 
     CustomerResponse findById(UUID userId);
 

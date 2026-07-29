@@ -51,7 +51,7 @@ class RecipeControllerTest {
         RecipeResponse response = new RecipeResponse(productId, ingredientId, "Leche entera", "ml", new BigDecimal("150.000"));
         when(recipeService.findByProduct(productId)).thenReturn(List.of(response));
 
-        mockMvc.perform(get("/api/products/" + productId + "/recipes"))
+        mockMvc.perform(get("/api/v1/products/" + productId + "/recipes"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].ingredientName").value("Leche entera"));
     }
@@ -64,7 +64,7 @@ class RecipeControllerTest {
         RecipeResponse response = new RecipeResponse(productId, ingredientId, "Leche entera", "ml", new BigDecimal("150.000"));
         when(recipeService.addToProduct(eq(productId), any(RecipeRequest.class))).thenReturn(response);
 
-        mockMvc.perform(post("/api/products/" + productId + "/recipes")
+        mockMvc.perform(post("/api/v1/products/" + productId + "/recipes")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -79,7 +79,7 @@ class RecipeControllerTest {
                 {"requiredQuantity":0}
                 """;
 
-        mockMvc.perform(post("/api/products/" + productId + "/recipes")
+        mockMvc.perform(post("/api/v1/products/" + productId + "/recipes")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(invalidJson))
                 .andExpect(status().isBadRequest());
@@ -90,7 +90,7 @@ class RecipeControllerTest {
         UUID productId = UUID.randomUUID();
         UUID ingredientId = UUID.randomUUID();
 
-        mockMvc.perform(delete("/api/products/" + productId + "/recipes/" + ingredientId))
+        mockMvc.perform(delete("/api/v1/products/" + productId + "/recipes/" + ingredientId))
                 .andExpect(status().isNoContent());
     }
 }

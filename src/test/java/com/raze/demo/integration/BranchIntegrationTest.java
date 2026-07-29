@@ -75,7 +75,7 @@ class BranchIntegrationTest {
         // (que efectivamente hace INSERT en Postgres) y devuelve la fila ya creada.
         // .with(user(...).roles("ADMIN")) simula un ADMIN autenticado sin pasar por login
         // real (eso ya se cubre en AuthIntegrationTest); el endpoint ahora exige auth.
-        mockMvc.perform(post("/api/branches")
+        mockMvc.perform(post("/api/v1/branches")
                         .with(user("admin").roles("ADMIN"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json))
@@ -85,8 +85,8 @@ class BranchIntegrationTest {
         // GET real: consulta de nuevo Postgres (SELECT ... WHERE active = true) y
         // confirma que la sucursal recién creada sí quedó visible ahí. Este segundo
         // paso es justo el que reveló que Branch.active quedaba en false por defecto.
-        mockMvc.perform(get("/api/branches").with(user("admin").roles("ADMIN")))
+        mockMvc.perform(get("/api/v1/branches").with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].name").value("Sucursal Sur"));
+                .andExpect(jsonPath("$.content[0].name").value("Sucursal Sur"));
     }
 }

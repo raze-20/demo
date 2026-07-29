@@ -52,7 +52,7 @@ class EmployeeControllerTest {
                 branchId, "Sucursal Centro", "Barista", "BARISTA", LocalDate.of(2026, 1, 15));
         when(employeeService.findById(userId)).thenReturn(response);
 
-        mockMvc.perform(get("/api/employees/" + userId))
+        mockMvc.perform(get("/api/v1/employees/" + userId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.position").value("Barista"))
                 .andExpect(jsonPath("$.branchName").value("Sucursal Centro"));
@@ -63,7 +63,7 @@ class EmployeeControllerTest {
         UUID userId = UUID.randomUUID();
         when(employeeService.findById(userId)).thenThrow(new ResourceNotFoundException("Employee not found: " + userId));
 
-        mockMvc.perform(get("/api/employees/" + userId))
+        mockMvc.perform(get("/api/v1/employees/" + userId))
                 .andExpect(status().isNotFound());
     }
 
@@ -79,7 +79,7 @@ class EmployeeControllerTest {
                 branchId, "Sucursal Centro", "Barista", "BARISTA", LocalDate.of(2026, 1, 15));
         when(employeeService.create(any(EmployeeRequest.class))).thenReturn(response);
 
-        mockMvc.perform(post("/api/employees")
+        mockMvc.perform(post("/api/v1/employees")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -94,7 +94,7 @@ class EmployeeControllerTest {
                 {"position":"Barista"}
                 """;
 
-        mockMvc.perform(post("/api/employees")
+        mockMvc.perform(post("/api/v1/employees")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(invalidJson))
                 .andExpect(status().isBadRequest());
@@ -104,7 +104,7 @@ class EmployeeControllerTest {
     void delete_retorna204() throws Exception {
         UUID userId = UUID.randomUUID();
 
-        mockMvc.perform(delete("/api/employees/" + userId))
+        mockMvc.perform(delete("/api/v1/employees/" + userId))
                 .andExpect(status().isNoContent());
     }
 }

@@ -9,11 +9,12 @@ import com.raze.demo.repository.UserRepository;
 import com.raze.demo.service.UserService;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.UUID;
 
 /**
@@ -32,11 +33,9 @@ public class UserServiceImpl implements UserService {
      * @return Lista de {@link UserResponse}
      */
     @Transactional(readOnly = true)
-    public List<UserResponse> findAll() {
-        return repository.findByActiveTrue()
-                .stream()
-                .map(this::toResponse)
-                .toList();
+    public Page<UserResponse> findAll(Pageable pageable) {
+        return repository.findByActiveTrue(pageable)
+                .map(this::toResponse);
     }
 
     @Transactional(readOnly = true)

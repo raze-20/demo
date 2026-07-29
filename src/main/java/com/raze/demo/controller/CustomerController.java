@@ -7,6 +7,8 @@ import com.raze.demo.service.CustomerService;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.parameters.P;
@@ -20,7 +22,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
-import java.util.List;
 import java.util.UUID;
 
 /**
@@ -28,7 +29,7 @@ import java.util.UUID;
  * Proporciona endpoints para realizar operaciones CRUD sobre los perfiles de cliente.
  */
 @RestController
-@RequestMapping("/api/customers")
+@RequestMapping("/api/v1/customers")
 @RequiredArgsConstructor
 public class CustomerController {
 
@@ -41,8 +42,8 @@ public class CustomerController {
      */
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     @GetMapping
-    public List<CustomerResponse> findAll() {
-        return service.findAll();
+    public Page<CustomerResponse> findAll(Pageable pageable) {
+        return service.findAll(pageable);
     }
 
     /**
@@ -67,7 +68,7 @@ public class CustomerController {
     @PostMapping
     public ResponseEntity<CustomerResponse> create(@Valid @RequestBody CustomerRequest request) {
         CustomerResponse response = service.create(request);
-        return ResponseEntity.created(URI.create("/api/customers/" + response.userId())).body(response);
+        return ResponseEntity.created(URI.create("/api/v1/customers/" + response.userId())).body(response);
     }
 
     /**

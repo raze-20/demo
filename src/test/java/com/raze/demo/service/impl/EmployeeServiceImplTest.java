@@ -7,6 +7,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -99,13 +102,13 @@ class EmployeeServiceImplTest {
 
     @Test
     void findAll_devuelveSoloEmployeesActivos() {
-        when(employeeRepository.findByActiveTrue()).thenReturn(List.of(employee));
+        when(employeeRepository.findByActiveTrue(any(Pageable.class))).thenReturn(new PageImpl<>(List.of(employee)));
 
-        List<EmployeeResponse> result = employeeService.findAll();
+        Page<EmployeeResponse> result = employeeService.findAll(Pageable.unpaged());
 
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).email()).isEqualTo("empleado@example.com");
-        verify(employeeRepository).findByActiveTrue();
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).email()).isEqualTo("empleado@example.com");
+        verify(employeeRepository).findByActiveTrue(any(Pageable.class));
     }
 
     @Test

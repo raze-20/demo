@@ -30,6 +30,8 @@ import com.raze.demo.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -74,11 +76,11 @@ public class OrderServiceImpl implements OrderService {
     private BigDecimal taxRate;
 
     @Transactional(readOnly = true)
-    public List<OrderResponse> findAll() {
-        return orderRepository.findAll()
-                .stream()
-                .map(this::toResponse)
-                .toList();
+    public Page<OrderResponse> findAll(OrderStatus status, Pageable pageable) {
+        Page<Order> page = status == null
+                ? orderRepository.findAll(pageable)
+                : orderRepository.findByStatus(status, pageable);
+        return page.map(this::toResponse);
     }
 
     @Transactional(readOnly = true)

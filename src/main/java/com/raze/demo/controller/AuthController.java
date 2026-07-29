@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
  * Controlador REST para autenticación: login con email+password, emisión de JWT.
  */
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
 public class AuthController {
 

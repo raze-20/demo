@@ -3,12 +3,14 @@ package com.raze.demo.service;
 import com.raze.demo.dto.UserRequest;
 import com.raze.demo.dto.UserResponse;
 
-import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
 import java.util.UUID;
 
 public interface UserService {
 
-    List<UserResponse> findAll();
+    Page<UserResponse> findAll(Pageable pageable);
 
     UserResponse findById(UUID id);
 

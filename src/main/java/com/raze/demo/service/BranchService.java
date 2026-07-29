@@ -2,12 +2,14 @@ package com.raze.demo.service;
 
 import com.raze.demo.dto.BranchResponse;
 
-import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
 import java.util.UUID;
 
 public interface BranchService {
 
-    public List<BranchResponse> findAll();
+    public Page<BranchResponse> findAll(Pageable pageable);
 
     public BranchResponse findById(UUID id);
 

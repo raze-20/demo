@@ -24,7 +24,7 @@ import java.util.UUID;
  * Controlador REST para la receta (bill of materials) de cada producto.
  */
 @RestController
-@RequestMapping("/api/products/{productId}/recipes")
+@RequestMapping("/api/v1/products/{productId}/recipes")
 @RequiredArgsConstructor
 public class RecipeController {
 
@@ -43,7 +43,7 @@ public class RecipeController {
     ) {
         RecipeResponse response = recipeService.addToProduct(productId, request);
         return ResponseEntity
-                .created(URI.create("/api/products/" + productId + "/recipes/" + response.ingredientId()))
+                .created(URI.create("/api/v1/products/" + productId + "/recipes/" + response.ingredientId()))
                 .body(response);
     }
 

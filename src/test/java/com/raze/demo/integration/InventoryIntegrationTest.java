@@ -101,7 +101,7 @@ class InventoryIntegrationTest {
     }
 
     private String login(String email, String password) throws Exception {
-        MvcResult result = mockMvc.perform(post("/api/auth/login")
+        MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"email":"%s","password":"%s"}
@@ -152,7 +152,7 @@ class InventoryIntegrationTest {
         UUID branchId = branch.getId();
 
         // Definir la receta: cada Latte requiere 150 ml de leche.
-        mockMvc.perform(post("/api/products/" + productId + "/recipes")
+        mockMvc.perform(post("/api/v1/products/" + productId + "/recipes")
                         .header("Authorization", bearer(adminToken))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -162,7 +162,7 @@ class InventoryIntegrationTest {
                 .andExpect(jsonPath("$.ingredientName").value("Leche entera"));
 
         // Un BARISTA no puede registrar movimientos de inventario (solo ADMIN/MANAGER): 403.
-        mockMvc.perform(post("/api/branches/" + branchId + "/inventory/movements")
+        mockMvc.perform(post("/api/v1/branches/" + branchId + "/inventory/movements")
                         .header("Authorization", bearer(baristaToken))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -171,7 +171,7 @@ class InventoryIntegrationTest {
                 .andExpect(status().isForbidden());
 
         // El ADMIN stockea 500 ml de leche (movimiento INCOMING).
-        mockMvc.perform(post("/api/branches/" + branchId + "/inventory/movements")
+        mockMvc.perform(post("/api/v1/branches/" + branchId + "/inventory/movements")
                         .header("Authorization", bearer(adminToken))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -182,7 +182,7 @@ class InventoryIntegrationTest {
                 .andExpect(jsonPath("$.performedByUserId").value(adminUserId.toString()));
 
         // Registrar un movimiento SALE manualmente está prohibido (solo lo dispara la venta).
-        mockMvc.perform(post("/api/branches/" + branchId + "/inventory/movements")
+        mockMvc.perform(post("/api/v1/branches/" + branchId + "/inventory/movements")
                         .header("Authorization", bearer(adminToken))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -191,7 +191,7 @@ class InventoryIntegrationTest {
                 .andExpect(status().isBadRequest());
 
         // Confirmar el stock inicial: 500 ml.
-        mockMvc.perform(get("/api/branches/" + branchId + "/inventory")
+        mockMvc.perform(get("/api/v1/branches/" + branchId + "/inventory")
                         .header("Authorization", bearer(adminToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].currentQuantity").value(500.000));
@@ -201,13 +201,13 @@ class InventoryIntegrationTest {
         String orderId = createPaidOrder(branchId, adminUserId, productId, adminToken, 2, "116.00");
 
         // El stock quedó en 500 - 300 = 200 ml.
-        mockMvc.perform(get("/api/branches/" + branchId + "/inventory")
+        mockMvc.perform(get("/api/v1/branches/" + branchId + "/inventory")
                         .header("Authorization", bearer(adminToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].currentQuantity").value(200.000));
 
         // El historial del ingrediente incluye el movimiento SALE de la venta.
-        mockMvc.perform(get("/api/branches/" + branchId + "/inventory/" + ingredientId + "/movements")
+        mockMvc.perform(get("/api/v1/branches/" + branchId + "/inventory/" + ingredientId + "/movements")
                         .header("Authorization", bearer(adminToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[?(@.type == 'SALE')].quantity").value(org.hamcrest.Matchers.hasItem(300.0)))
@@ -216,7 +216,7 @@ class InventoryIntegrationTest {
         // Segundo pedido de 2 Lattes: necesita 300 ml pero solo quedan 200 → el pago se rechaza
         // (400) y, al revertirse la transacción, el stock no cambia.
         String secondOrderId = createOrderWithItem(branchId, adminUserId, productId, adminToken, 2);
-        mockMvc.perform(post("/api/orders/" + secondOrderId + "/payments")
+        mockMvc.perform(post("/api/v1/orders/" + secondOrderId + "/payments")
                         .header("Authorization", bearer(adminToken))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -224,14 +224,14 @@ class InventoryIntegrationTest {
                                 """))
                 .andExpect(status().isBadRequest());
 
-        mockMvc.perform(get("/api/branches/" + branchId + "/inventory")
+        mockMvc.perform(get("/api/v1/branches/" + branchId + "/inventory")
                         .header("Authorization", bearer(adminToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].currentQuantity").value(200.000));
     }
 
     private String createOrderWithItem(UUID branchId, UUID employeeId, UUID productId, String token, int quantity) throws Exception {
-        MvcResult orderResult = mockMvc.perform(post("/api/orders")
+        MvcResult orderResult = mockMvc.perform(post("/api/v1/orders")
                         .header("Authorization", bearer(token))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -241,7 +241,7 @@ class InventoryIntegrationTest {
                 .andReturn();
         String orderId = objectMapper.readTree(orderResult.getResponse().getContentAsString()).get("id").asText();
 
-        mockMvc.perform(post("/api/orders/" + orderId + "/items")
+        mockMvc.perform(post("/api/v1/orders/" + orderId + "/items")
                         .header("Authorization", bearer(token))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -255,7 +255,7 @@ class InventoryIntegrationTest {
     private String createPaidOrder(UUID branchId, UUID employeeId, UUID productId, String token, int quantity, String amount) throws Exception {
         String orderId = createOrderWithItem(branchId, employeeId, productId, token, quantity);
 
-        MvcResult paid = mockMvc.perform(post("/api/orders/" + orderId + "/payments")
+        MvcResult paid = mockMvc.perform(post("/api/v1/orders/" + orderId + "/payments")
                         .header("Authorization", bearer(token))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""

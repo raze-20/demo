@@ -29,7 +29,7 @@ import java.util.UUID;
  * pago de una orden en {@code /api/orders}.
  */
 @RestController
-@RequestMapping("/api/branches/{branchId}/inventory")
+@RequestMapping("/api/v1/branches/{branchId}/inventory")
 @RequiredArgsConstructor
 public class BranchInventoryController {
 
@@ -49,7 +49,7 @@ public class BranchInventoryController {
     ) {
         InventoryMovementResponse response = inventoryService.recordMovement(branchId, request, principal.getId());
         return ResponseEntity
-                .created(URI.create("/api/branches/" + branchId + "/inventory"))
+                .created(URI.create("/api/v1/branches/" + branchId + "/inventory"))
                 .body(response);
     }
 

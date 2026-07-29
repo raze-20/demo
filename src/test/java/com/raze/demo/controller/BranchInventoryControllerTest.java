@@ -49,7 +49,7 @@ class BranchInventoryControllerTest {
                 new BigDecimal("500.000"), new BigDecimal("100.000"), OffsetDateTime.now());
         when(inventoryService.findByBranch(branchId)).thenReturn(List.of(response));
 
-        mockMvc.perform(get("/api/branches/" + branchId + "/inventory"))
+        mockMvc.perform(get("/api/v1/branches/" + branchId + "/inventory"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].ingredientName").value("Leche entera"))
                 .andExpect(jsonPath("$[0].currentQuantity").value(500.000));
@@ -64,7 +64,7 @@ class BranchInventoryControllerTest {
                 "Order 1", UUID.randomUUID(), OffsetDateTime.now());
         when(inventoryService.findMovements(branchId, ingredientId)).thenReturn(List.of(response));
 
-        mockMvc.perform(get("/api/branches/" + branchId + "/inventory/" + ingredientId + "/movements"))
+        mockMvc.perform(get("/api/v1/branches/" + branchId + "/inventory/" + ingredientId + "/movements"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].type").value("SALE"));
     }

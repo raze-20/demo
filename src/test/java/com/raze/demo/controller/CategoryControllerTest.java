@@ -45,7 +45,7 @@ class CategoryControllerTest {
         CategoryResponse response = new CategoryResponse(1, "Coffee", true);
         when(categoryService.findById(1)).thenReturn(response);
 
-        mockMvc.perform(get("/api/categories/1"))
+        mockMvc.perform(get("/api/v1/categories/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("Coffee"));
     }
@@ -56,7 +56,7 @@ class CategoryControllerTest {
         CategoryResponse response = new CategoryResponse(2, "Tea", true);
         when(categoryService.create(any(CategoryRequest.class))).thenReturn(response);
 
-        mockMvc.perform(post("/api/categories")
+        mockMvc.perform(post("/api/v1/categories")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -71,7 +71,7 @@ class CategoryControllerTest {
                 {"active":true}
                 """;
 
-        mockMvc.perform(post("/api/categories")
+        mockMvc.perform(post("/api/v1/categories")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(invalidJson))
                 .andExpect(status().isBadRequest());
@@ -85,7 +85,7 @@ class CategoryControllerTest {
         when(categoryService.create(any(CategoryRequest.class)))
                 .thenThrow(new DuplicateResourceException("Category already exists: Coffee"));
 
-        mockMvc.perform(post("/api/categories")
+        mockMvc.perform(post("/api/v1/categories")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict());
@@ -93,7 +93,7 @@ class CategoryControllerTest {
 
     @Test
     void delete_retorna204() throws Exception {
-        mockMvc.perform(delete("/api/categories/1"))
+        mockMvc.perform(delete("/api/v1/categories/1"))
                 .andExpect(status().isNoContent());
     }
 }

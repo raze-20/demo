@@ -16,11 +16,12 @@ import com.raze.demo.repository.UserRepository;
 import com.raze.demo.service.EmployeeService;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.UUID;
 
 /**
@@ -38,11 +39,9 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final PasswordEncoder passwordEncoder;
 
     @Transactional(readOnly = true)
-    public List<EmployeeResponse> findAll() {
-        return employeeRepository.findByActiveTrue()
-                .stream()
-                .map(this::toResponse)
-                .toList();
+    public Page<EmployeeResponse> findAll(Pageable pageable) {
+        return employeeRepository.findByActiveTrue(pageable)
+                .map(this::toResponse);
     }
 
     @Transactional(readOnly = true)

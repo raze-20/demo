@@ -79,7 +79,7 @@ class BranchControllerTest {
         // mockMvc.perform(get(...)) ejecuta el ciclo real de Spring MVC: resuelve la ruta,
         // llama al método del controller, serializa la respuesta a JSON y arma un
         // HttpServletResponse simulado que luego se puede inspeccionar con andExpect(...).
-        mockMvc.perform(get("/api/branches/" + id))
+        mockMvc.perform(get("/api/v1/branches/" + id))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("Sucursal Centro"));
     }
@@ -94,7 +94,7 @@ class BranchControllerTest {
         // Se envía JSON de verdad (serializado con el ObjectMapper real) para forzar que
         // Spring MVC ejercite su deserializador y el @Valid del controller, cosa que un
         // test de service (que llama directo al método Java) nunca pasa por ahí.
-        mockMvc.perform(post("/api/branches")
+        mockMvc.perform(post("/api/v1/branches")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -110,7 +110,7 @@ class BranchControllerTest {
                 {"address":"Calle 45","city":"Monterrey","state":"NL"}
                 """;
 
-        mockMvc.perform(post("/api/branches")
+        mockMvc.perform(post("/api/v1/branches")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(invalidJson))
                 .andExpect(status().isBadRequest());

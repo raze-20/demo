@@ -6,6 +6,8 @@ import com.raze.demo.service.CategoryService;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -18,14 +20,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
-import java.util.List;
 
 /**
  * Controlador REST para la gestión de categorías.
  * Proporciona endpoints para realizar operaciones CRUD sobre categorías.
  */
 @RestController
-@RequestMapping("/api/categories")
+@RequestMapping("/api/v1/categories")
 @RequiredArgsConstructor
 public class CategoryController {
 
@@ -37,8 +38,8 @@ public class CategoryController {
      * @return Lista de {@link CategoryResponse}
      */
     @GetMapping
-    public List<CategoryResponse> findAll() {
-        return categoryService.findAll();
+    public Page<CategoryResponse> findAll(Pageable pageable) {
+        return categoryService.findAll(pageable);
     }
 
     /**
@@ -63,7 +64,7 @@ public class CategoryController {
     public ResponseEntity<CategoryResponse> create(@Valid @RequestBody CategoryRequest request) {
         CategoryResponse response = categoryService.create(request);
         return ResponseEntity
-                .created(URI.create("/api/categories/" + response.id()))
+                .created(URI.create("/api/v1/categories/" + response.id()))
                 .body(response);
     }
 

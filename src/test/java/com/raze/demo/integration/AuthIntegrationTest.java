@@ -90,7 +90,7 @@ class AuthIntegrationTest {
                 {"email":"%s","password":"%s"}
                 """.formatted(email, password);
 
-        MvcResult result = mockMvc.perform(post("/api/auth/login")
+        MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(loginJson))
                 .andExpect(status().isOk())
@@ -113,12 +113,16 @@ class AuthIntegrationTest {
         String baristaEmail = seedStaffUser("barista.auth@test.com", "BaristaPass123", UserRole.BARISTA, branch);
 
         // Sin token, un endpoint protegido responde 401 (no el error por defecto de Spring).
-        mockMvc.perform(get("/api/branches"))
+        mockMvc.perform(get("/api/v1/branches"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.status").value(401));
 
+        // La documentación OpenAPI es publica (permitida en SecurityConfig): 200 sin token.
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk());
+
         // Login con password incorrecta responde 401.
-        mockMvc.perform(post("/api/auth/login")
+        mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"email":"admin.auth@test.com","password":"incorrecta"}
@@ -129,9 +133,9 @@ class AuthIntegrationTest {
         String baristaToken = login(baristaEmail, "BaristaPass123");
 
         // Cualquier rol autenticado puede leer.
-        mockMvc.perform(get("/api/branches").header("Authorization", "Bearer " + adminToken))
+        mockMvc.perform(get("/api/v1/branches").header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk());
-        mockMvc.perform(get("/api/branches").header("Authorization", "Bearer " + baristaToken))
+        mockMvc.perform(get("/api/v1/branches").header("Authorization", "Bearer " + baristaToken))
                 .andExpect(status().isOk());
 
         String newBranchJson = """
@@ -139,7 +143,7 @@ class AuthIntegrationTest {
                 """;
 
         // BARISTA no puede crear sucursales (solo ADMIN/MANAGER): 403, no un 500 ni un 401.
-        mockMvc.perform(post("/api/branches")
+        mockMvc.perform(post("/api/v1/branches")
                         .header("Authorization", "Bearer " + baristaToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(newBranchJson))
@@ -147,14 +151,14 @@ class AuthIntegrationTest {
                 .andExpect(jsonPath("$.status").value(403));
 
         // ADMIN sí puede.
-        mockMvc.perform(post("/api/branches")
+        mockMvc.perform(post("/api/v1/branches")
                         .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(newBranchJson))
                 .andExpect(status().isCreated());
 
         // Un token con firma inválida se rechaza igual que no mandar ninguno.
-        mockMvc.perform(get("/api/branches").header("Authorization", "Bearer not.a.valid.token"))
+        mockMvc.perform(get("/api/v1/branches").header("Authorization", "Bearer not.a.valid.token"))
                 .andExpect(status().isUnauthorized());
     }
 }

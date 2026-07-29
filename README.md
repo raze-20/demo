@@ -17,7 +17,7 @@ El proyecto ya tiene una base solida de dominio:
 - Manejo global de errores para recursos no encontrados, duplicados y errores de validacion.
 - Borrado logico (`active=false`) para sucursales, categorias, productos, ingredientes, usuarios, clientes y empleados.
 - Contraseñas de usuario cifradas con `spring-security-crypto` (`PasswordEncoder`).
-- `customers` y `employees` se registran en un solo paso: `POST /api/customers` y `POST /api/employees` crean el `user` (con clave compartida `user_id`) y su perfil en la misma transaccion, en vez de requerir un `userId` de un `user` creado antes por separado. Asi la invariante `user.role` acorde al perfil queda garantizada por construccion.
+- `customers` y `employees` se registran en un solo paso: `POST /api/v1/customers` y `POST /api/v1/employees` crean el `user` (con clave compartida `user_id`) y su perfil en la misma transaccion, en vez de requerir un `userId` de un `user` creado antes por separado. Asi la invariante `user.role` acorde al perfil queda garantizada por construccion.
 - Tests unitarios de servicios con Mockito para `Branch`, `Customer`, `Employee`, `Category`, `Product`, `Ingredient` y `User`.
 - Tests de controlador con `MockMvc` para `branches`, `categories`, `products`, `ingredients`, `users`, `customers` y `employees`.
 - Tests de integracion end-to-end con Testcontainers (Postgres real + Flyway) para `branches`, y para los flujos criticos de catalogo (`categories` + `products`) y alta de usuarios (cifrado de contraseña, correo duplicado).
@@ -32,7 +32,8 @@ El proyecto ya tiene una base solida de dominio:
 - Flyway
 - Lombok
 - Jakarta Validation
-- Spring Security Crypto (hashing de contraseñas)
+- Spring Security + JWT (jjwt) para autenticacion/autorizacion
+- springdoc-openapi (Swagger UI)
 - Testcontainers (tests de integracion)
 - Maven Wrapper
 - Docker Compose para base de datos local
@@ -123,7 +124,7 @@ Empaquetar sin pruebas:
 ### Auth
 
 ```text
-POST   /api/auth/login
+POST   /api/v1/auth/login
 ```
 
 Request:
@@ -146,7 +147,7 @@ Response (`200`):
 }
 ```
 
-El resto de la API (excepto `POST /api/customers`, que sigue publico para auto-registro) requiere el header `Authorization: Bearer <token>`. Sin token responde `401`; con un rol sin permiso responde `403`. Autorizacion por rol:
+El resto de la API (excepto `POST /api/v1/customers`, que sigue publico para auto-registro) requiere el header `Authorization: Bearer <token>`. Sin token responde `401`; con un rol sin permiso responde `403`. Autorizacion por rol:
 
 | Recurso | Lectura | Escritura |
 |---|---|---|
@@ -159,14 +160,21 @@ El resto de la API (excepto `POST /api/customers`, que sigue publico para auto-r
 
 Variables de entorno: `JWT_SECRET` (obligatoria en el perfil `prod`; la app no arranca si falta), `JWT_EXPIRATION_MINUTES` (opcional, default `60`).
 
+### Paginacion, filtros y documentacion
+
+- **Versionado**: todos los endpoints cuelgan de `/api/v1/...`.
+- **Paginacion**: los listados (`GET` de `branches`, `categories`, `products`, `ingredients`, `users`, `customers`, `employees`, `orders`) devuelven una pagina Spring Data (`{ "content": [...], "totalElements": ..., "totalPages": ..., "number": ..., "size": ... }`). Aceptan los parametros estandar `page` (0-based), `size` y `sort` (ej. `?page=0&size=20&sort=name,asc`).
+- **Filtros**: `GET /api/v1/products?categoryId=1` filtra productos por categoria; `GET /api/v1/orders?status=PAID` filtra ordenes por estado. Ambos combinables con la paginacion.
+- **OpenAPI/Swagger**: `GET /v3/api-docs` (JSON) y `/swagger-ui.html` (UI interactiva), publicos (sin token). La UI incluye el boton "Authorize" para pegar el JWT y probar los endpoints protegidos.
+
 ### Branches
 
 ```text
-GET    /api/branches
-GET    /api/branches/{id}
-POST   /api/branches
-PUT    /api/branches/{id}
-DELETE /api/branches/{id}
+GET    /api/v1/branches
+GET    /api/v1/branches/{id}
+POST   /api/v1/branches
+PUT    /api/v1/branches/{id}
+DELETE /api/v1/branches/{id}
 ```
 
 Request:
@@ -180,16 +188,16 @@ Request:
 }
 ```
 
-`DELETE /api/branches/{id}` desactiva la sucursal con `active=false`.
+`DELETE /api/v1/branches/{id}` desactiva la sucursal con `active=false`.
 
 ### Categories
 
 ```text
-GET    /api/categories
-GET    /api/categories/{id}
-POST   /api/categories
-PUT    /api/categories/{id}
-DELETE /api/categories/{id}
+GET    /api/v1/categories
+GET    /api/v1/categories/{id}
+POST   /api/v1/categories
+PUT    /api/v1/categories/{id}
+DELETE /api/v1/categories/{id}
 ```
 
 Request:
@@ -201,16 +209,16 @@ Request:
 }
 ```
 
-`DELETE /api/categories/{id}` desactiva la categoria con `active=false`.
+`DELETE /api/v1/categories/{id}` desactiva la categoria con `active=false`.
 
 ### Products
 
 ```text
-GET    /api/products
-GET    /api/products/{id}
-POST   /api/products
-PUT    /api/products/{id}
-DELETE /api/products/{id}
+GET    /api/v1/products
+GET    /api/v1/products/{id}
+POST   /api/v1/products
+PUT    /api/v1/products/{id}
+DELETE /api/v1/products/{id}
 ```
 
 Request:
@@ -224,16 +232,16 @@ Request:
 }
 ```
 
-`DELETE /api/products/{id}` desactiva el producto con `active=false`.
+`DELETE /api/v1/products/{id}` desactiva el producto con `active=false`.
 
 ### Ingredients
 
 ```text
-GET    /api/ingredients
-GET    /api/ingredients/{id}
-POST   /api/ingredients
-PUT    /api/ingredients/{id}
-DELETE /api/ingredients/{id}
+GET    /api/v1/ingredients
+GET    /api/v1/ingredients/{id}
+POST   /api/v1/ingredients
+PUT    /api/v1/ingredients/{id}
+DELETE /api/v1/ingredients/{id}
 ```
 
 Request:
@@ -245,16 +253,16 @@ Request:
 }
 ```
 
-`DELETE /api/ingredients/{id}` desactiva el ingrediente con `active=false`.
+`DELETE /api/v1/ingredients/{id}` desactiva el ingrediente con `active=false`.
 
 ### Users
 
 ```text
-GET    /api/users
-GET    /api/users/{id}
-POST   /api/users
-PUT    /api/users/{id}
-DELETE /api/users/{id}
+GET    /api/v1/users
+GET    /api/v1/users/{id}
+POST   /api/v1/users
+PUT    /api/v1/users/{id}
+DELETE /api/v1/users/{id}
 ```
 
 Request:
@@ -269,16 +277,16 @@ Request:
 }
 ```
 
-Roles disponibles: `ADMIN`, `MANAGER`, `CASHIER`, `BARISTA`, `CUSTOMER`. La contraseña se cifra con `PasswordEncoder` antes de guardarse. `DELETE /api/users/{id}` desactiva el usuario con `active=false`.
+Roles disponibles: `ADMIN`, `MANAGER`, `CASHIER`, `BARISTA`, `CUSTOMER`. La contraseña se cifra con `PasswordEncoder` antes de guardarse. `DELETE /api/v1/users/{id}` desactiva el usuario con `active=false`.
 
 ### Customers
 
 ```text
-GET    /api/customers
-GET    /api/customers/{userId}
-POST   /api/customers
-PUT    /api/customers/{userId}
-DELETE /api/customers/{userId}
+GET    /api/v1/customers
+GET    /api/v1/customers/{userId}
+POST   /api/v1/customers
+PUT    /api/v1/customers/{userId}
+DELETE /api/v1/customers/{userId}
 ```
 
 Request de `POST` (registra el `user` con rol `CUSTOMER` y su perfil en un solo paso):
@@ -303,16 +311,16 @@ Request de `PUT` (solo datos del perfil, sin credenciales de login):
 }
 ```
 
-`POST /api/customers` responde `409` si ya existe un `user` con ese correo. `DELETE /api/customers/{userId}` desactiva el perfil con `active=false`.
+`POST /api/v1/customers` responde `409` si ya existe un `user` con ese correo. `DELETE /api/v1/customers/{userId}` desactiva el perfil con `active=false`.
 
 ### Employees
 
 ```text
-GET    /api/employees
-GET    /api/employees/{userId}
-POST   /api/employees
-PUT    /api/employees/{userId}
-DELETE /api/employees/{userId}
+GET    /api/v1/employees
+GET    /api/v1/employees/{userId}
+POST   /api/v1/employees
+PUT    /api/v1/employees/{userId}
+DELETE /api/v1/employees/{userId}
 ```
 
 Request de `POST` (registra el `user` con el rol operativo indicado en `type` y su perfil en un solo paso):
@@ -341,21 +349,21 @@ Request de `PUT` (solo datos del perfil y del rol operativo, sin credenciales de
 }
 ```
 
-`type` acepta cualquier rol operativo (`ADMIN`, `MANAGER`, `CASHIER`, `BARISTA`); `CUSTOMER` se rechaza con `400` (esa alta va por `/api/customers`). `POST /api/employees` responde `409` si ya existe un `user` con ese correo y `404` si `branchId` no existe. `DELETE /api/employees/{userId}` desactiva el perfil con `active=false`.
+`type` acepta cualquier rol operativo (`ADMIN`, `MANAGER`, `CASHIER`, `BARISTA`); `CUSTOMER` se rechaza con `400` (esa alta va por `/api/v1/customers`). `POST /api/v1/employees` responde `409` si ya existe un `user` con ese correo y `404` si `branchId` no existe. `DELETE /api/v1/employees/{userId}` desactiva el perfil con `active=false`.
 
 ### Orders (flujo de ventas)
 
 ```text
-GET    /api/orders
-GET    /api/orders/{id}
-POST   /api/orders
-POST   /api/orders/{orderId}/items
-DELETE /api/orders/{orderId}/items/{itemId}
-PATCH  /api/orders/{orderId}/status
-POST   /api/orders/{orderId}/payments
+GET    /api/v1/orders
+GET    /api/v1/orders/{id}
+POST   /api/v1/orders
+POST   /api/v1/orders/{orderId}/items
+DELETE /api/v1/orders/{orderId}/items/{itemId}
+PATCH  /api/v1/orders/{orderId}/status
+POST   /api/v1/orders/{orderId}/payments
 ```
 
-Request de `POST /api/orders` (crea la orden vacia en estado `PENDING`; `customerId` es opcional):
+Request de `POST /api/v1/orders` (crea la orden vacia en estado `PENDING`; `customerId` es opcional):
 
 ```json
 {
@@ -365,7 +373,7 @@ Request de `POST /api/orders` (crea la orden vacia en estado `PENDING`; `custome
 }
 ```
 
-Request de `POST /api/orders/{orderId}/items` (agrega un producto; el precio se toma de `Product.basePrice` en ese instante y queda congelado en el item, sin importar que el precio del producto cambie despues; `quantity` acepta de 1 a 500):
+Request de `POST /api/v1/orders/{orderId}/items` (agrega un producto; el precio se toma de `Product.basePrice` en ese instante y queda congelado en el item, sin importar que el precio del producto cambie despues; `quantity` acepta de 1 a 500):
 
 ```json
 {
@@ -375,7 +383,7 @@ Request de `POST /api/orders/{orderId}/items` (agrega un producto; el precio se 
 }
 ```
 
-Request de `PATCH /api/orders/{orderId}/status` (transiciones manuales del staff; `PAID` nunca se setea aqui, solo la dispara un pago que cubre el total):
+Request de `PATCH /api/v1/orders/{orderId}/status` (transiciones manuales del staff; `PAID` nunca se setea aqui, solo la dispara un pago que cubre el total):
 
 ```json
 {
@@ -385,7 +393,7 @@ Request de `PATCH /api/orders/{orderId}/status` (transiciones manuales del staff
 
 Transiciones validas: `PENDING -> CANCELLED`, `PAID -> PREPARING`, `PAID -> CANCELLED`, `PREPARING -> DELIVERED`, `PREPARING -> CANCELLED`. `DELIVERED` y `CANCELLED` son terminales.
 
-Request de `POST /api/orders/{orderId}/payments` (admite varios pagos parciales con distinto metodo por orden; `amount` acepta hasta 8 digitos enteros y 2 decimales):
+Request de `POST /api/v1/orders/{orderId}/payments` (admite varios pagos parciales con distinto metodo por orden; `amount` acepta hasta 8 digitos enteros y 2 decimales):
 
 ```json
 {
@@ -401,9 +409,9 @@ Al pasar la orden a `PAID`, se descuenta automaticamente el stock de ingrediente
 ### Recipes (receta por producto)
 
 ```text
-GET    /api/products/{productId}/recipes
-POST   /api/products/{productId}/recipes
-DELETE /api/products/{productId}/recipes/{ingredientId}
+GET    /api/v1/products/{productId}/recipes
+POST   /api/v1/products/{productId}/recipes
+DELETE /api/v1/products/{productId}/recipes/{ingredientId}
 ```
 
 Request de `POST` (agrega un ingrediente a la receta del producto, con la cantidad requerida por unidad vendida):
@@ -420,9 +428,9 @@ Escritura restringida a `ADMIN`/`MANAGER`. `POST` responde `409` si el ingredien
 ### Inventory (stock por sucursal)
 
 ```text
-GET    /api/branches/{branchId}/inventory
-POST   /api/branches/{branchId}/inventory/movements
-GET    /api/branches/{branchId}/inventory/{ingredientId}/movements
+GET    /api/v1/branches/{branchId}/inventory
+POST   /api/v1/branches/{branchId}/inventory/movements
+GET    /api/v1/branches/{branchId}/inventory/{ingredientId}/movements
 ```
 
 Request de `POST .../movements` (registra un movimiento manual de stock; el usuario que lo registra se toma del token):
@@ -475,33 +483,28 @@ Enums PostgreSQL:
 - `Order` usa bloqueo optimista (columna `version`): dos escrituras concurrentes sobre la misma orden (dos pagos, o un pago y un cambio de estado) nunca se pisan en silencio, la segunda recibe `409 Conflict` para reintentar.
 - `GlobalExceptionHandler` tambien cubre violaciones de integridad de datos, conflictos de bloqueo optimista y JSON malformado con el mismo esquema `ApiError`; cualquier excepcion no anticipada responde `500` sin exponer el mensaje/stacktrace real (que si queda en el log del servidor).
 - El flujo de ordenes/pagos registra logging de auditoria (`OrderServiceImpl`, via SLF4J): creacion de orden, alta/baja de items, cambios de estado, pagos registrados e intentos rechazados.
-- Autenticacion/autorizacion real con Spring Security + JWT sin estado (`POST /api/auth/login`); todos los endpoints previos ahora exigen rol via `@PreAuthorize`/`@PostAuthorize`, con reglas de "dueño del recurso" para `customers` y `orders`.
+- Autenticacion/autorizacion real con Spring Security + JWT sin estado (`POST /api/v1/auth/login`); todos los endpoints previos ahora exigen rol via `@PreAuthorize`/`@PostAuthorize`, con reglas de "dueño del recurso" para `customers` y `orders`.
 - Inventario completo: receta (bill of materials) por producto, stock por sucursal con movimientos auditables (`INCOMING`/`WASTE`/`ADJUSTMENT`), y descuento automatico de ingredientes al pagar una orden (movimiento `SALE`), todo dentro de la misma transaccion del pago: si el stock no alcanza, el pago se revierte por completo.
+- API versionada (`/api/v1`), listados paginados (Spring Data `Page` con `page`/`size`/`sort`), filtros (`products?categoryId`, `orders?status`) y documentacion OpenAPI/Swagger (`/swagger-ui.html`, `/v3/api-docs`) con el esquema de seguridad JWT ya declarado.
 
 ### Riesgos Y Deuda Tecnica
 
-- No hay paginacion, filtros ni ordenamiento en listados.
-- No hay perfiles separados para `dev`, `test` y `prod`.
+- No hay perfil de test separado (`application-test.yml`); las credenciales de BD en `prod` todavia caen a un default inseguro si no se setean.
 - Los tests de integracion dependen de Docker disponible (Testcontainers); hay que asegurarlo en CI.
 - Falta un test de integracion (Testcontainers) para el flujo de registro de `customers`/`employees`; hoy solo esta cubierto con unitarios (Mockito) y de controlador (MockMvc).
+- No hay Dockerfile de la aplicacion ni pipeline de CI.
 
 ## Siguientes Pasos Recomendados
 
-1. Mejorar API publica
-   - Paginacion en `GET`.
-   - Filtros por `active`, categoria, sucursal o nombre.
-   - OpenAPI/Swagger.
-   - Versionado de API (`/api/v1/...`).
-
-2. Separar configuraciones
+1. Separar configuraciones
    - `application-test.yml`
    - Variables de entorno obligatorias para produccion (mas alla de `JWT_SECRET`, ya requerida).
 
-3. Preparar entrega
+2. Preparar entrega
    - Dockerfile para la aplicacion.
    - Compose completo con app + database.
    - Configurar GitHub Actions (CI/CD) para compilar y correr pruebas en cada push.
 
 ## Prioridad Sugerida
 
-Con seguridad e inventario ya resueltos, y el flujo de ordenes/pagos construido y endurecido, el dominio del negocio esta completo. Lo que queda es hardening operativo de la API: el proximo paso mas valioso es la paginacion/filtros en los listados (hoy devuelven la coleccion entera) junto con OpenAPI/Swagger para documentar la API ya crecida, antes de preparar la entrega (Dockerfile + CI).
+Con seguridad, inventario y el pulido de la API (paginacion, filtros, versionado, OpenAPI) ya resueltos, el backend esta funcionalmente completo. Lo unico que queda es preparar la entrega: completar la separacion de configuracion por perfil (incluyendo variables obligatorias en `prod`) y empaquetar la app con un Dockerfile + `docker-compose` app+db, mas un pipeline de CI que compile y corra las pruebas en cada push.

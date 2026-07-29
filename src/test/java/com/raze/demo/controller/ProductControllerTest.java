@@ -50,7 +50,7 @@ class ProductControllerTest {
         ProductResponse response = new ProductResponse(id, "Latte", new BigDecimal("55.00"), true, 1, "Coffee");
         when(productService.findById(id)).thenReturn(response);
 
-        mockMvc.perform(get("/api/products/" + id))
+        mockMvc.perform(get("/api/v1/products/" + id))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("Latte"))
                 .andExpect(jsonPath("$.categoryName").value("Coffee"));
@@ -61,7 +61,7 @@ class ProductControllerTest {
         UUID id = UUID.randomUUID();
         when(productService.findById(id)).thenThrow(new ResourceNotFoundException("Product not found: " + id));
 
-        mockMvc.perform(get("/api/products/" + id))
+        mockMvc.perform(get("/api/v1/products/" + id))
                 .andExpect(status().isNotFound());
     }
 
@@ -72,7 +72,7 @@ class ProductControllerTest {
         ProductResponse response = new ProductResponse(id, "Mocha", new BigDecimal("60.00"), true, 1, "Coffee");
         when(productService.create(any(ProductRequest.class))).thenReturn(response);
 
-        mockMvc.perform(post("/api/products")
+        mockMvc.perform(post("/api/v1/products")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -87,7 +87,7 @@ class ProductControllerTest {
                 {"active":true}
                 """;
 
-        mockMvc.perform(post("/api/products")
+        mockMvc.perform(post("/api/v1/products")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(invalidJson))
                 .andExpect(status().isBadRequest());
@@ -97,7 +97,7 @@ class ProductControllerTest {
     void delete_retorna204() throws Exception {
         UUID id = UUID.randomUUID();
 
-        mockMvc.perform(delete("/api/products/" + id))
+        mockMvc.perform(delete("/api/v1/products/" + id))
                 .andExpect(status().isNoContent());
     }
 }

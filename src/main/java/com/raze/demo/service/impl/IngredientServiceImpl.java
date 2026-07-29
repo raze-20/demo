@@ -7,10 +7,11 @@ import com.raze.demo.model.Ingredient;
 import com.raze.demo.repository.IngredientRepository;
 import com.raze.demo.service.IngredientService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -25,11 +26,9 @@ public class IngredientServiceImpl implements IngredientService{
      * @return Lista de {@link IngredientResponse}
      */
     @Transactional(readOnly = true)
-    public List<IngredientResponse> findAll() {
-        return repository.findByActiveTrue()
-                .stream()
-                .map(this::toResponse)
-                .toList();
+    public Page<IngredientResponse> findAll(Pageable pageable) {
+        return repository.findByActiveTrue(pageable)
+                .map(this::toResponse);
     }
 
     @Transactional(readOnly = true)

@@ -46,7 +46,7 @@ class IngredientControllerTest {
         IngredientResponse response = new IngredientResponse(id, "Leche entera", "ml");
         when(ingredientService.findById(id)).thenReturn(response);
 
-        mockMvc.perform(get("/api/ingredients/" + id))
+        mockMvc.perform(get("/api/v1/ingredients/" + id))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("Leche entera"));
     }
@@ -56,7 +56,7 @@ class IngredientControllerTest {
         UUID id = UUID.randomUUID();
         when(ingredientService.findById(id)).thenThrow(new ResourceNotFoundException("Ingredient not found: " + id));
 
-        mockMvc.perform(get("/api/ingredients/" + id))
+        mockMvc.perform(get("/api/v1/ingredients/" + id))
                 .andExpect(status().isNotFound());
     }
 
@@ -67,7 +67,7 @@ class IngredientControllerTest {
         IngredientResponse response = new IngredientResponse(id, "Leche de almendra", "ml");
         when(ingredientService.create(any(IngredientRequest.class))).thenReturn(response);
 
-        mockMvc.perform(post("/api/ingredients")
+        mockMvc.perform(post("/api/v1/ingredients")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -82,7 +82,7 @@ class IngredientControllerTest {
                 {"name":"Leche de almendra"}
                 """;
 
-        mockMvc.perform(post("/api/ingredients")
+        mockMvc.perform(post("/api/v1/ingredients")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(invalidJson))
                 .andExpect(status().isBadRequest());
@@ -92,7 +92,7 @@ class IngredientControllerTest {
     void delete_retorna204() throws Exception {
         UUID id = UUID.randomUUID();
 
-        mockMvc.perform(delete("/api/ingredients/" + id))
+        mockMvc.perform(delete("/api/v1/ingredients/" + id))
                 .andExpect(status().isNoContent());
     }
 }
