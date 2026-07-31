@@ -75,9 +75,22 @@ DB_PASSWORD: rootpassword
 
 Perfiles Spring (se elige con `SPRING_PROFILES_ACTIVE`):
 
-- `dev` (default en la rama `dev`): logging verboso (`DEBUG` + SQL), secreto JWT de conveniencia por defecto.
+- `dev` (default en la rama `dev`): logging verboso (`DEBUG` + SQL), secreto JWT de conveniencia por defecto y siembra del empleado inicial (ver abajo).
 - `test`: se activa automaticamente al correr `mvnw test` (via surefire); logging minimo y secreto JWT de prueba. El datasource lo aporta Testcontainers.
 - `prod` (default en la rama `main`): logging `INFO`, y `DB_URL`/`DB_USERNAME`/`DB_PASSWORD` **obligatorias sin default** — la app no arranca si faltan (evita usar credenciales de desarrollo por accidente). `JWT_SECRET` tambien es obligatoria.
+
+### Empleado inicial (solo perfil `dev`)
+
+Una base recien migrada por Flyway queda vacia y no hay forma de entrar: `POST /api/v1/auth/login` necesita un `user` existente y el resto de la API exige token. `DevDataSeeder` resuelve ese arranque en frio: al levantar la app con el perfil `dev` crea una sucursal de demo y un empleado con rol `ADMIN`, listo para el login del front.
+
+| Campo | Valor por defecto |
+|---|---|
+| Correo | `raze.armando@gmail.com` |
+| Contrasena | `password` |
+| Rol | `ADMIN` |
+| Sucursal | `Sucursal Centro` |
+
+Los valores se configuran en `application-dev.yml` bajo `app.seed.*`. El seeder es idempotente: si ya existe un usuario con ese correo no toca nada, asi que arrancar la app varias veces (o cambiar la contrasena despues) es seguro. En `prod` no se ejecuta — ahi el primer administrador se da de alta a mano, para no dejar credenciales conocidas en produccion.
 
 ## Docker
 
