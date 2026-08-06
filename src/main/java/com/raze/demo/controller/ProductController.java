@@ -7,6 +7,7 @@ import com.raze.demo.service.ProductService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -42,7 +43,7 @@ public class ProductController {
     @GetMapping
     public Page<ProductResponse> findAll(
             @RequestParam(required = false) Integer categoryId,
-            Pageable pageable
+            @ParameterObject Pageable pageable
     ) {
         return productService.findAll(categoryId, pageable);
     }

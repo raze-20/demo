@@ -11,3 +11,11 @@ spring:
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
+
+# La documentación describe la superficie completa de la API (incluidos los endpoints de admin),
+# así que no se publica en produccion.
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

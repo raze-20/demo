@@ -7,6 +7,7 @@ import com.raze.demo.service.IngredientService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -39,7 +40,7 @@ public class IngredientController {
      * @return Lista de {@link IngredientResponse}
      */
     @GetMapping
-    public Page<IngredientResponse> findAll(Pageable pageable) {
+    public Page<IngredientResponse> findAll(@ParameterObject Pageable pageable) {
         return service.findAll(pageable);
     }
 

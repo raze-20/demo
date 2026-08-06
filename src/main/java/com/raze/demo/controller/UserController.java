@@ -7,6 +7,7 @@ import com.raze.demo.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -40,7 +41,7 @@ public class UserController {
      * @return Lista de {@link UserResponse}
      */
     @GetMapping
-    public Page<UserResponse> findAll(Pageable pageable) {
+    public Page<UserResponse> findAll(@ParameterObject Pageable pageable) {
         return service.findAll(pageable);
     }
 

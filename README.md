@@ -196,7 +196,8 @@ Variables de entorno: `JWT_SECRET` (obligatoria en el perfil `prod`; la app no a
 - **Versionado**: todos los endpoints cuelgan de `/api/v1/...`.
 - **Paginacion**: los listados (`GET` de `branches`, `categories`, `products`, `ingredients`, `users`, `customers`, `employees`, `orders`) devuelven una pagina Spring Data (`{ "content": [...], "totalElements": ..., "totalPages": ..., "number": ..., "size": ... }`). Aceptan los parametros estandar `page` (0-based), `size` y `sort` (ej. `?page=0&size=20&sort=name,asc`).
 - **Filtros**: `GET /api/v1/products?categoryId=1` filtra productos por categoria; `GET /api/v1/orders?status=PAID` filtra ordenes por estado. Ambos combinables con la paginacion.
-- **OpenAPI/Swagger**: `GET /v3/api-docs` (JSON) y `/swagger-ui.html` (UI interactiva), publicos (sin token). La UI incluye el boton "Authorize" para pegar el JWT y probar los endpoints protegidos.
+- **OpenAPI/Swagger**: `GET /v3/api-docs` (JSON) y `/swagger-ui.html` (UI interactiva), publicos (sin token) en `dev`/`test` y **deshabilitados en `prod`** (`springdoc.api-docs.enabled=false`), porque el documento describe la superficie completa de la API incluidos los endpoints de administracion. La UI incluye el boton "Authorize" para pegar el JWT y probar los endpoints protegidos.
+- **Contenido del documento**: las descripciones de cada endpoint salen del Javadoc de controllers y DTOs (via `therapi-runtime-javadoc`), sin duplicarlo en anotaciones `@Operation`/`@Schema`. Ademas se generan automaticamente: los roles que exige cada operacion (leidos de `@PreAuthorize`), las respuestas de error con el esquema `ApiError` (`400`/`404`/`409`/`500`, mas `401`/`403` en los endpoints protegidos) y los parametros `page`/`size`/`sort` de los listados (`@ParameterObject Pageable`). Los endpoints publicos aparecen sin candado porque `SecurityConfig` y Swagger leen la misma lista (`PublicEndpoints`).
 
 ### Branches
 
@@ -517,6 +518,7 @@ Enums PostgreSQL:
 - Autenticacion/autorizacion real con Spring Security + JWT sin estado (`POST /api/v1/auth/login`); todos los endpoints previos ahora exigen rol via `@PreAuthorize`/`@PostAuthorize`, con reglas de "dueño del recurso" para `customers` y `orders`.
 - Inventario completo: receta (bill of materials) por producto, stock por sucursal con movimientos auditables (`INCOMING`/`WASTE`/`ADJUSTMENT`), y descuento automatico de ingredientes al pagar una orden (movimiento `SALE`), todo dentro de la misma transaccion del pago: si el stock no alcanza, el pago se revierte por completo.
 - API versionada (`/api/v1`), listados paginados (Spring Data `Page` con `page`/`size`/`sort`), filtros (`products?categoryId`, `orders?status`) y documentacion OpenAPI/Swagger (`/swagger-ui.html`, `/v3/api-docs`) con el esquema de seguridad JWT ya declarado.
+- El documento OpenAPI se genera a partir del codigo y no de anotaciones duplicadas: descripciones desde el Javadoc, roles desde `@PreAuthorize`, errores desde el contrato real de `GlobalExceptionHandler` y rutas publicas desde la misma lista que usa `SecurityConfig` (`PublicEndpoints`), asi la documentacion no se desincroniza del comportamiento. En `prod` la documentacion no se publica.
 - Entrega lista: `Dockerfile` multi-stage (Temurin 25, usuario no-root), `docker-compose` con app + Postgres (healthcheck + `depends_on`), y CI en GitHub Actions que corre `./mvnw verify` (incluye Testcontainers) en cada push/PR.
 
 ### Riesgos Y Deuda Tecnica

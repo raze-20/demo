@@ -8,6 +8,7 @@ import com.raze.demo.service.CustomerService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -42,7 +43,7 @@ public class CustomerController {
      */
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     @GetMapping
-    public Page<CustomerResponse> findAll(Pageable pageable) {
+    public Page<CustomerResponse> findAll(@ParameterObject Pageable pageable) {
         return service.findAll(pageable);
     }
 

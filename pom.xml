@@ -28,6 +28,7 @@
 	</scm>
 	<properties>
 		<java.version>25</java.version>
+		<therapi.version>0.15.0</therapi.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -114,6 +115,17 @@
 			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
 			<version>3.0.3</version>
 		</dependency>
+		<!--
+			Conserva el Javadoc en tiempo de ejecución (lo escribe el processor
+			therapi-runtime-javadoc-scribe declarado en maven-compiler-plugin). springdoc lo detecta
+			por classpath y usa el Javadoc de controllers y DTOs como descripciones del documento
+			OpenAPI, de modo que no hace falta duplicarlo con @Operation/@Schema.
+		-->
+		<dependency>
+			<groupId>com.github.therapi</groupId>
+			<artifactId>therapi-runtime-javadoc</artifactId>
+			<version>${therapi.version}</version>
+		</dependency>
 		<dependency>
 			<groupId>org.springframework.security</groupId>
 			<artifactId>spring-security-test</artifactId>
@@ -181,6 +193,11 @@
 								<path>
 									<groupId>org.projectlombok</groupId>
 									<artifactId>lombok</artifactId>
+								</path>
+								<path>
+									<groupId>com.github.therapi</groupId>
+									<artifactId>therapi-runtime-javadoc-scribe</artifactId>
+									<version>${therapi.version}</version>
 								</path>
 							</annotationProcessorPaths>
 						</configuration>

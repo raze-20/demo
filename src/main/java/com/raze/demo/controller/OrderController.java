@@ -11,6 +11,7 @@ import com.raze.demo.service.OrderService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PostAuthorize;
@@ -42,7 +43,7 @@ public class OrderController {
     @GetMapping
     public Page<OrderResponse> findAll(
             @RequestParam(required = false) OrderStatus status,
-            Pageable pageable
+            @ParameterObject Pageable pageable
     ) {
         return orderService.findAll(status, pageable);
     }

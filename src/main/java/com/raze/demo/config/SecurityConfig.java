@@ -7,7 +7,6 @@ import com.raze.demo.security.RestAuthenticationEntryPoint;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -35,11 +34,19 @@ public class SecurityConfig {
                 .exceptionHandling(handling -> handling
                         .authenticationEntryPoint(restAuthenticationEntryPoint)
                         .accessDeniedHandler(restAccessDeniedHandler))
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/v1/auth/**").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/v1/customers").permitAll()
-                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                        .anyRequest().authenticated())
+                .authorizeHttpRequests(auth -> {
+                    // Las rutas públicas viven en PublicEndpoints para que Swagger documente
+                    // exactamente las mismas que aquí se dejan pasar sin token.
+                    for (PublicEndpoints.Rule rule : PublicEndpoints.API) {
+                        if (rule.method() == null) {
+                            auth.requestMatchers(rule.pattern()).permitAll();
+                        } else {
+                            auth.requestMatchers(rule.method(), rule.pattern()).permitAll();
+                        }
+                    }
+                    auth.requestMatchers(PublicEndpoints.DOCS.toArray(String[]::new)).permitAll()
+                            .anyRequest().authenticated();
+                })
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
