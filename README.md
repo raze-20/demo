@@ -1,6 +1,8 @@
 # Coffee Demo API
 
-> **Rama:** `dev` — Desarrollo (version `1.2.0-SNAPSHOT`, perfil Spring activo por defecto: `dev`).
+> **Rama:** `next` — Rama de trabajo (version `1.2.0-SNAPSHOT`, perfil Spring activo por defecto: `dev`). Sale de `dev` y vuelve a `dev` por merge cuando lo que se este cocinando aqui este listo.
+>
+> **Empieza por [Estado Y Puesta En Marcha](#estado-y-puesta-en-marcha)**: que hay hecho, que falta verificar y en que orden atacarlo para dejar esto corriendo de verdad.
 
 Backend REST para gestionar una cafeteria. El proyecto esta construido con Spring Boot, PostgreSQL, JPA y Flyway. Cubre el dominio completo del negocio: catalogo (sucursales, categorias, productos, ingredientes), usuarios/clientes/empleados, flujo de ventas (ordenes y pagos) e inventario (recetas y stock por sucursal con descuento automatico al vender). La API esta versionada (`/api/v1`), autenticada con JWT y autorizada por rol, paginada, documentada con OpenAPI/Swagger y empaquetada con Docker + CI.
 
@@ -526,10 +528,92 @@ Enums PostgreSQL:
 - Falta un test de integracion (Testcontainers) para el flujo de registro de `customers`/`employees`; hoy solo esta cubierto con unitarios (Mockito) y de controlador (MockMvc).
 - El pipeline de CI compila y prueba, pero no publica la imagen a ningun registry ni despliega (fuera de alcance por ahora).
 
-## Siguientes Pasos Recomendados
+## Estado Y Puesta En Marcha
 
-El roadmap de "calidad de produccion" (seguridad, inventario, API publica, configuracion por perfil y entrega) esta completo. Mejoras opcionales a futuro:
+> Corte: 2026-08-05. Esta seccion vive en la rama `next` y es el mapa de lo que falta para pasar de
+> "el codigo esta completo" a "el sistema esta corriendo y se usa".
 
-- Publicar la imagen Docker a un registry (ghcr.io) y agregar un job de despliegue al pipeline.
-- Cerrar la brecha de test de integracion del alta de `customers`/`employees`.
-- Refresh tokens / expiracion-renovacion de JWT, rate limiting, y observabilidad (Actuator + metricas).
+### Donde esta el proyecto
+
+| Pieza | Estado |
+|---|---|
+| Backend (esta rama) | Roadmap de 5 fases completo (auth, inventario, API publica, perfiles, Docker/CI). 173 tests verdes: unitarios (Mockito), de controlador (MockMvc) e integracion real con Testcontainers. Documento OpenAPI generado desde el propio codigo. |
+| Ramas | `main` = `1.1.0` liberada (perfil `prod` por defecto); `dev` = `1.2.0-SNAPSHOT` (perfil `dev`); `next` = esta rama de trabajo, se mergea a `dev`. Fuera de esos tres archivos de configuracion, las tres ramas tienen el mismo codigo. |
+| Frontend | Repo aparte: `../coffee-frontend` (Next.js 16 + TypeScript, patron BFF: el JWT vive en una cookie httpOnly del servidor de Next, el navegador nunca lo ve y por eso no hace falta CORS). Ya tiene login, POS (`/pos`, `/orders`), los CRUD de administracion, recetas e inventario. Compila (`npm run build`). |
+| Verificacion end-to-end | **Pendiente.** Ni el backend ni el front se han probado nunca contra el sistema completo levantado (Postgres real + API + navegador). Todo lo verde hasta hoy son tests, no una venta real de principio a fin. |
+| Despliegue | **Pendiente.** Hay imagen Docker y CI que corre `./mvnw verify`, pero nada publica la imagen ni despliega, y no hay proveedor elegido. |
+
+### En que enfocarse, en orden
+
+#### 1. Probar el sistema completo levantado (antes que cualquier otra cosa)
+
+Es el paso que mas informacion da por lo que cuesta: hasta ahora nadie ha visto una orden cobrarse
+de verdad. Con el perfil `dev` (que siembra el empleado ADMIN inicial, ver [Empleado
+inicial](#empleado-inicial-solo-perfil-dev)):
+
+```bash
+cp .env.example .env          # y poner SPRING_PROFILES_ACTIVE=dev para que siembre el admin
+docker compose up -d --build  # API en :8080, Postgres en :5432
+```
+
+Con el front apuntando ahi (`API_URL=http://localhost:8080` en su `.env.local`, `npm run dev`),
+recorrer el flujo completo: login → crear categoria y producto → cargar la receta del producto →
+meter stock de los ingredientes en la sucursal → levantar una orden en el POS → cobrarla → confirmar
+que el stock bajo solo con el pago. Lo que falle ahi es la lista de trabajo real; lo de abajo es lo
+que ya se sabe que falta.
+
+#### 2. Arranque en frio en produccion: hoy nadie puede entrar
+
+Es el bloqueador duro para subirlo. `DevDataSeeder` solo corre con el perfil `dev`; en `prod` la base
+queda migrada pero vacia, y ahi:
+
+- `POST /api/v1/auth/login` necesita un `user` que no existe.
+- Todo lo demas exige token, y el unico endpoint publico (`POST /api/v1/customers`) crea un
+  `CUSTOMER`, que no puede operar el front de personal.
+- Aunque se creara un `ADMIN` a mano, el POS manda como `employeeId` el uid del usuario logueado: si
+  ese usuario no tiene fila en `employees`, crear ordenes responde `404`. El primer usuario tiene que
+  ser un **empleado** con sucursal, no solo un `user`.
+
+Dos caminos razonables: una migracion Flyway (`V<n>__seed_admin.sql`) que inserte sucursal + user con
+hash BCrypt + employee, o un seeder de bootstrap equivalente a `DevDataSeeder` activable por variable
+de entorno (`app.seed.enabled=true` + credenciales por env) que se apague despues del primer arranque.
+El segundo evita meter un hash en el repositorio.
+
+#### 3. Salud y secretos para el proveedor de hosting
+
+- **Healthcheck**: no hay Actuator, y el servicio `app` de `docker-compose` tampoco tiene
+  `healthcheck`. Railway/Render/Fly esperan un endpoint que responda si la app esta viva. Agregar
+  `spring-boot-starter-actuator`, exponer solo `health` y sumarlo a `PublicEndpoints.DOCS` para que
+  el filtro de seguridad lo deje pasar.
+- **Secretos**: `JWT_SECRET` de verdad (`openssl rand -base64 48`), nunca el de `.env.example`, y las
+  credenciales de la base del proveedor. En `prod` faltando cualquiera de `DB_URL`/`DB_USERNAME`/
+  `DB_PASSWORD`/`JWT_SECRET` la app no arranca — eso es intencional, no un bug.
+
+#### 4. Subirlo
+
+- **Backend**: cualquier plataforma que corra el `Dockerfile` (Railway, Render, Fly.io o un VPS con
+  `docker compose`), con Postgres gestionado y las variables de arriba mas
+  `SPRING_PROFILES_ACTIVE=prod`. Flyway aplica el esquema al primer arranque: el usuario de base
+  necesita permisos de DDL.
+- **Frontend**: Vercel, con `API_URL` apuntando a la URL publica del backend. Al ser BFF, el
+  navegador solo habla con Next: no hay que abrir CORS en Spring.
+- **Backups** de la base desde el primer dia: es la unica pieza con estado.
+
+#### 5. Que se sostenga en operacion
+
+- **Expiracion de sesion**: el JWT dura 60 minutos y no hay refresh. La cookie del BFF puede
+  sobrevivir al token y el cajero se encuentra un `401` a media venta. Minimo: que el proxy del front
+  detecte `401` y mande a `/login`; mejor: refresh tokens.
+- **Rate limiting** en `POST /api/v1/auth/login`: hoy admite intentos ilimitados.
+- **Observabilidad**: metricas de Actuator y logs centralizados del proveedor. El flujo de
+  ordenes/pagos ya escribe log de auditoria, falta poder consultarlo.
+- **CI**: publicar la imagen a `ghcr.io` y agregar el job de despliegue, para dejar de construir a
+  mano.
+
+#### 6. Deuda conocida (no bloquea)
+
+- Falta el test de integracion (Testcontainers) del alta de `customers`/`employees`.
+- En `prod` la documentacion OpenAPI esta apagada a proposito; para explorarla, un entorno de staging
+  con perfil `dev`.
+- Del lado del front quedan el portal del cliente (que un `CUSTOMER` vea sus ordenes), tema oscuro e
+  i18n.
