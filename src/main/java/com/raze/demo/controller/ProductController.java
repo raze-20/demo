@@ -6,7 +6,11 @@ import com.raze.demo.service.ProductService;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -14,10 +18,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
-import java.util.List;
 import java.util.UUID;
 
 /**
@@ -25,7 +29,7 @@ import java.util.UUID;
  * Proporciona endpoints para realizar operaciones CRUD sobre los productos del menú.
  */
 @RestController
-@RequestMapping("/api/products")
+@RequestMapping("/api/v1/products")
 @RequiredArgsConstructor
 public class ProductController {
 
@@ -37,8 +41,11 @@ public class ProductController {
      * @return Lista de {@link ProductResponse}
      */
     @GetMapping
-    public List<ProductResponse> findAll() {
-        return productService.findAll();
+    public Page<ProductResponse> findAll(
+            @RequestParam(required = false) Integer categoryId,
+            @ParameterObject Pageable pageable
+    ) {
+        return productService.findAll(categoryId, pageable);
     }
 
     /**
@@ -58,11 +65,12 @@ public class ProductController {
      * @param request Datos del producto a crear
      * @return {@link ResponseEntity} con el producto creado y el estado HTTP 201 Created
      */
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     @PostMapping
     public ResponseEntity<ProductResponse> create(@Valid @RequestBody ProductRequest request) {
         ProductResponse response = productService.create(request);
         return ResponseEntity
-                .created(URI.create("/api/products/" + response.id()))
+                .created(URI.create("/api/v1/products/" + response.id()))
                 .body(response);
     }
 
@@ -73,6 +81,7 @@ public class ProductController {
      * @param request Nuevos datos del producto
      * @return {@link ProductResponse} con los datos actualizados
      */
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     @PutMapping("/{id}")
     public ProductResponse update(@PathVariable UUID id, @Valid @RequestBody ProductRequest request) {
         return productService.update(id, request);
@@ -84,6 +93,7 @@ public class ProductController {
      * @param id Identificador UUID del producto a eliminar
      * @return {@link ResponseEntity} vacío con estado HTTP 204 No Content
      */
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         productService.delete(id);

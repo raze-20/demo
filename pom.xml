@@ -10,7 +10,7 @@
 	</parent>
 	<groupId>com.raze</groupId>
 	<artifactId>demo</artifactId>
-	<version>1.0.0</version>
+	<version>1.1.0</version>
 	<name>coffee-demo</name>
 	<description>Coffee shop backend REST API (Spring Boot, PostgreSQL, JPA, Flyway) - branches, products, orders and payments.</description>
 	<url/>
@@ -28,6 +28,7 @@
 	</scm>
 	<properties>
 		<java.version>25</java.version>
+		<therapi.version>0.15.0</therapi.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -90,6 +91,48 @@
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-api</artifactId>
+			<version>0.12.6</version>
+		</dependency>
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-impl</artifactId>
+			<version>0.12.6</version>
+			<scope>runtime</scope>
+		</dependency>
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-jackson</artifactId>
+			<version>0.12.6</version>
+			<scope>runtime</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springdoc</groupId>
+			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+			<version>3.0.3</version>
+		</dependency>
+		<!--
+			Conserva el Javadoc en tiempo de ejecución (lo escribe el processor
+			therapi-runtime-javadoc-scribe declarado en maven-compiler-plugin). springdoc lo detecta
+			por classpath y usa el Javadoc de controllers y DTOs como descripciones del documento
+			OpenAPI, de modo que no hace falta duplicarlo con @Operation/@Schema.
+		-->
+		<dependency>
+			<groupId>com.github.therapi</groupId>
+			<artifactId>therapi-runtime-javadoc</artifactId>
+			<version>${therapi.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-jpa-test</artifactId>
 			<scope>test</scope>
 		</dependency>
@@ -112,6 +155,17 @@
 
 	<build>
 		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<configuration>
+					<!-- Las pruebas corren bajo el perfil 'test' (logs silenciosos, secreto JWT de prueba);
+					     Testcontainers sigue sobreescribiendo el datasource via @ServiceConnection. -->
+					<systemPropertyVariables>
+						<spring.profiles.active>test</spring.profiles.active>
+					</systemPropertyVariables>
+				</configuration>
+			</plugin>
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
@@ -139,6 +193,11 @@
 								<path>
 									<groupId>org.projectlombok</groupId>
 									<artifactId>lombok</artifactId>
+								</path>
+								<path>
+									<groupId>com.github.therapi</groupId>
+									<artifactId>therapi-runtime-javadoc-scribe</artifactId>
+									<version>${therapi.version}</version>
 								</path>
 							</annotationProcessorPaths>
 						</configuration>

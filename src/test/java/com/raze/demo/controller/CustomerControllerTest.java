@@ -3,11 +3,13 @@ package com.raze.demo.controller;
 import com.raze.demo.dto.CustomerRequest;
 import com.raze.demo.dto.CustomerResponse;
 import com.raze.demo.exception.ResourceNotFoundException;
+import com.raze.demo.security.JwtService;
 import com.raze.demo.service.CustomerService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
@@ -25,6 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * {@code /{userId}} en vez de {@code /{id}} porque Customer comparte clave primaria con User.
  */
 @WebMvcTest(CustomerController.class)
+@WithMockUser(roles = "ADMIN")
 class CustomerControllerTest {
 
     @Autowired
@@ -36,13 +39,16 @@ class CustomerControllerTest {
     @MockitoBean
     private CustomerService customerService;
 
+    @MockitoBean
+    private JwtService jwtService;
+
     @Test
     void getById_retorna200_conCustomer() throws Exception {
         UUID userId = UUID.randomUUID();
         CustomerResponse response = new CustomerResponse(userId, "cliente@example.com", "Juan", "Perez", 10, LocalDate.of(2000, 1, 1));
         when(customerService.findById(userId)).thenReturn(response);
 
-        mockMvc.perform(get("/api/customers/" + userId))
+        mockMvc.perform(get("/api/v1/customers/" + userId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.loyaltyPoints").value(10));
     }
@@ -52,7 +58,7 @@ class CustomerControllerTest {
         UUID userId = UUID.randomUUID();
         when(customerService.findById(userId)).thenThrow(new ResourceNotFoundException("Customer not found: " + userId));
 
-        mockMvc.perform(get("/api/customers/" + userId))
+        mockMvc.perform(get("/api/v1/customers/" + userId))
                 .andExpect(status().isNotFound());
     }
 
@@ -63,7 +69,7 @@ class CustomerControllerTest {
         CustomerResponse response = new CustomerResponse(userId, "cliente@example.com", "Juan", "Perez", 0, LocalDate.of(1998, 5, 12));
         when(customerService.create(any(CustomerRequest.class))).thenReturn(response);
 
-        mockMvc.perform(post("/api/customers")
+        mockMvc.perform(post("/api/v1/customers")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -78,7 +84,7 @@ class CustomerControllerTest {
                 {"loyaltyPoints":0,"birthDate":"1998-05-12"}
                 """;
 
-        mockMvc.perform(post("/api/customers")
+        mockMvc.perform(post("/api/v1/customers")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(invalidJson))
                 .andExpect(status().isBadRequest());
@@ -88,7 +94,7 @@ class CustomerControllerTest {
     void delete_retorna204() throws Exception {
         UUID userId = UUID.randomUUID();
 
-        mockMvc.perform(delete("/api/customers/" + userId))
+        mockMvc.perform(delete("/api/v1/customers/" + userId))
                 .andExpect(status().isNoContent());
     }
 }

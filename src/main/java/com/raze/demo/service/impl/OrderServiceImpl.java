@@ -24,11 +24,14 @@ import com.raze.demo.repository.OrderItemRepository;
 import com.raze.demo.repository.OrderRepository;
 import com.raze.demo.repository.PaymentRepository;
 import com.raze.demo.repository.ProductRepository;
+import com.raze.demo.service.InventoryService;
 import com.raze.demo.service.OrderService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -67,16 +70,17 @@ public class OrderServiceImpl implements OrderService {
     private final EmployeeRepository employeeRepository;
     private final CustomerRepository customerRepository;
     private final ProductRepository productRepository;
+    private final InventoryService inventoryService;
 
     @Value("${app.tax-rate:0.16}")
     private BigDecimal taxRate;
 
     @Transactional(readOnly = true)
-    public List<OrderResponse> findAll() {
-        return orderRepository.findAll()
-                .stream()
-                .map(this::toResponse)
-                .toList();
+    public Page<OrderResponse> findAll(OrderStatus status, Pageable pageable) {
+        Page<Order> page = status == null
+                ? orderRepository.findAll(pageable)
+                : orderRepository.findByStatus(status, pageable);
+        return page.map(this::toResponse);
     }
 
     @Transactional(readOnly = true)
@@ -175,6 +179,15 @@ public class OrderServiceImpl implements OrderService {
         log.info("Payment registered on order {}: method={}, amount={}", orderId, request.method(), request.amount());
 
         if (alreadyPaid.add(request.amount()).compareTo(order.getTotal()) >= 0) {
+            List<OrderItem> items = orderItemRepository.findByOrderId(orderId);
+            if (!items.isEmpty()) {
+                UUID performedByUserId = order.getEmployee().getUser().getId();
+                for (OrderItem item : items) {
+                    inventoryService.discountForSale(
+                            order.getBranch().getId(), item.getProduct().getId(), item.getQuantity(), orderId, performedByUserId);
+                }
+            }
+
             order.setStatus(OrderStatus.PAID);
             orderRepository.save(order);
             log.info("Order {} fully paid, status changed to PAID", orderId);

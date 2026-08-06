@@ -1,13 +1,14 @@
 package com.raze.demo.service;
 
-import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import com.raze.demo.dto.CategoryRequest;
 import com.raze.demo.dto.CategoryResponse;
 
 public interface CategoryService {
 
-    public List<CategoryResponse> findAll();
+    public Page<CategoryResponse> findAll(Pageable pageable);
 
     public CategoryResponse findById(Integer id);
 

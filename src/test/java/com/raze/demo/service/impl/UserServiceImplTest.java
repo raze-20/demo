@@ -13,6 +13,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.List;
@@ -61,13 +64,13 @@ class UserServiceImplTest {
 
     @Test
     void findAll_devuelveSoloUsuariosActivos() {
-        when(repository.findByActiveTrue()).thenReturn(List.of(user));
+        when(repository.findByActiveTrue(any(Pageable.class))).thenReturn(new PageImpl<>(List.of(user)));
 
-        List<UserResponse> result = userService.findAll();
+        Page<UserResponse> result = userService.findAll(Pageable.unpaged());
 
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).email()).isEqualTo("ana@example.com");
-        verify(repository).findByActiveTrue();
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).email()).isEqualTo("ana@example.com");
+        verify(repository).findByActiveTrue(any(Pageable.class));
     }
 
     @Test

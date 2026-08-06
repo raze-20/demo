@@ -14,6 +14,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -69,14 +72,25 @@ class ProductServiceImplTest {
 
     @Test
     void findAll_devuelveSoloProductosActivos() {
-        when(productRepository.findByActiveTrue()).thenReturn(List.of(product));
+        when(productRepository.findByActiveTrue(any(Pageable.class))).thenReturn(new PageImpl<>(List.of(product)));
 
-        List<ProductResponse> result = productService.findAll();
+        Page<ProductResponse> result = productService.findAll(null, Pageable.unpaged());
 
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).name()).isEqualTo("Latte");
-        assertThat(result.get(0).categoryName()).isEqualTo("Coffee");
-        verify(productRepository).findByActiveTrue();
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).name()).isEqualTo("Latte");
+        assertThat(result.getContent().get(0).categoryName()).isEqualTo("Coffee");
+        verify(productRepository).findByActiveTrue(any(Pageable.class));
+    }
+
+    @Test
+    void findAll_filtraPorCategoria_cuandoSeIndicaCategoryId() {
+        when(productRepository.findByActiveTrueAndCategoryId(org.mockito.ArgumentMatchers.eq(categoryId), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(product)));
+
+        Page<ProductResponse> result = productService.findAll(categoryId, Pageable.unpaged());
+
+        assertThat(result.getContent()).hasSize(1);
+        verify(productRepository).findByActiveTrueAndCategoryId(org.mockito.ArgumentMatchers.eq(categoryId), any(Pageable.class));
     }
 
     @Test

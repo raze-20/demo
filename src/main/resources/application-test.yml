@@ -1,0 +1,11 @@
+# Perfil para corridas de pruebas. El datasource lo sobreescribe Testcontainers via
+# @ServiceConnection, asi que aqui solo se baja el ruido de logs y se fija un secreto JWT
+# de prueba (nunca para produccion).
+logging:
+  level:
+    com.raze.demo: WARN
+    org.hibernate.SQL: WARN
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:test-only-insecure-secret-change-me-not-for-production-use-0123456789}

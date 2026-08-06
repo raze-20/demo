@@ -1,14 +1,16 @@
 package com.raze.demo.service;
 
-import java.util.List;
 import java.util.UUID;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import com.raze.demo.dto.ProductRequest;
 import com.raze.demo.dto.ProductResponse;
 
 public interface ProductService {
 
-    public List<ProductResponse> findAll();
+    public Page<ProductResponse> findAll(Integer categoryId, Pageable pageable);
 
     public ProductResponse findById(UUID id);
 

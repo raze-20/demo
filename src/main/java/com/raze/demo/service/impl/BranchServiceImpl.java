@@ -7,10 +7,11 @@ import com.raze.demo.model.Branch;
 import com.raze.demo.repository.BranchRepository;
 import com.raze.demo.service.BranchService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -25,11 +26,9 @@ public class BranchServiceImpl implements BranchService {
      * @return Lista de {@link BranchResponse}
      */
     @Transactional(readOnly = true)
-    public List<BranchResponse> findAll() {
-        return branchRepository.findByActiveTrue()
-                .stream()
-                .map(this::toResponse)
-                .toList();
+    public Page<BranchResponse> findAll(Pageable pageable) {
+        return branchRepository.findByActiveTrue(pageable)
+                .map(this::toResponse);
     }
 
     @Transactional(readOnly = true)

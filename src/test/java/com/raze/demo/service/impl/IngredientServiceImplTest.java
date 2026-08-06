@@ -11,6 +11,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.Optional;
@@ -52,13 +55,13 @@ class IngredientServiceImplTest {
 
     @Test
     void findAll_devuelveSoloIngredientesActivos() {
-        when(repository.findByActiveTrue()).thenReturn(List.of(ingredient));
+        when(repository.findByActiveTrue(any(Pageable.class))).thenReturn(new PageImpl<>(List.of(ingredient)));
 
-        List<IngredientResponse> result = ingredientService.findAll();
+        Page<IngredientResponse> result = ingredientService.findAll(Pageable.unpaged());
 
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).name()).isEqualTo("Leche entera");
-        verify(repository).findByActiveTrue();
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).name()).isEqualTo("Leche entera");
+        verify(repository).findByActiveTrue(any(Pageable.class));
     }
 
     @Test

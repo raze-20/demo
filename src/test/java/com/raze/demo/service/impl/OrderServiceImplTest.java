@@ -15,6 +15,7 @@ import com.raze.demo.model.Order;
 import com.raze.demo.model.OrderItem;
 import com.raze.demo.model.Payment;
 import com.raze.demo.model.Product;
+import com.raze.demo.model.User;
 import com.raze.demo.repository.BranchRepository;
 import com.raze.demo.repository.CustomerRepository;
 import com.raze.demo.repository.EmployeeRepository;
@@ -22,6 +23,7 @@ import com.raze.demo.repository.OrderItemRepository;
 import com.raze.demo.repository.OrderRepository;
 import com.raze.demo.repository.PaymentRepository;
 import com.raze.demo.repository.ProductRepository;
+import com.raze.demo.service.InventoryService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -39,6 +41,9 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -70,6 +75,9 @@ class OrderServiceImplTest {
     @Mock
     private ProductRepository productRepository;
 
+    @Mock
+    private InventoryService inventoryService;
+
     @InjectMocks
     private OrderServiceImpl orderService;
 
@@ -95,8 +103,12 @@ class OrderServiceImplTest {
         branch.setId(branchId);
         branch.setName("Sucursal Centro");
 
+        User employeeUser = new User();
+        employeeUser.setId(employeeId);
+
         employee = new Employee();
         employee.setUserId(employeeId);
+        employee.setUser(employeeUser);
 
         product = new Product();
         product.setId(productId);
@@ -306,6 +318,39 @@ class OrderServiceImplTest {
         OrderResponse response = orderService.addPayment(orderId, secondPaymentRequest);
 
         assertThat(response.status()).isEqualTo(OrderStatus.PAID);
+    }
+
+    @Test
+    void addPayment_descuentaInventarioPorCadaItem_cuandoOrdenQuedaPagada() {
+        order.setTotal(new BigDecimal("55.00"));
+
+        OrderItem item = new OrderItem();
+        item.setId(UUID.randomUUID());
+        item.setProduct(product);
+        item.setQuantity(3);
+        item.setUnitPrice(new BigDecimal("55.00"));
+
+        PaymentRequest request = new PaymentRequest(PaymentMethod.CASH, new BigDecimal("55.00"));
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(paymentRepository.findByOrderId(orderId)).thenReturn(List.of());
+        when(orderRepository.save(any(Order.class))).thenReturn(order);
+        when(orderItemRepository.findByOrderId(orderId)).thenReturn(List.of(item));
+
+        orderService.addPayment(orderId, request);
+
+        verify(inventoryService).discountForSale(branchId, productId, 3, orderId, employeeId);
+    }
+
+    @Test
+    void addPayment_noDescuentaInventario_cuandoElPagoNoCompletaElTotal() {
+        order.setTotal(new BigDecimal("100.00"));
+        PaymentRequest request = new PaymentRequest(PaymentMethod.CASH, new BigDecimal("50.00"));
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(paymentRepository.findByOrderId(orderId)).thenReturn(List.of());
+
+        orderService.addPayment(orderId, request);
+
+        verify(inventoryService, never()).discountForSale(any(), any(), anyInt(), any(), any());
     }
 
     @Test

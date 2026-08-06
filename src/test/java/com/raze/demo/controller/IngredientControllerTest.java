@@ -3,11 +3,13 @@ package com.raze.demo.controller;
 import com.raze.demo.dto.IngredientRequest;
 import com.raze.demo.dto.IngredientResponse;
 import com.raze.demo.exception.ResourceNotFoundException;
+import com.raze.demo.security.JwtService;
 import com.raze.demo.service.IngredientService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
@@ -23,6 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * TEST DE "SLICE" (capa web) — mismo patrón que {@link BranchControllerTest}.
  */
 @WebMvcTest(IngredientController.class)
+@WithMockUser(roles = "ADMIN")
 class IngredientControllerTest {
 
     @Autowired
@@ -34,13 +37,16 @@ class IngredientControllerTest {
     @MockitoBean
     private IngredientService ingredientService;
 
+    @MockitoBean
+    private JwtService jwtService;
+
     @Test
     void getById_retorna200_conIngrediente() throws Exception {
         UUID id = UUID.randomUUID();
         IngredientResponse response = new IngredientResponse(id, "Leche entera", "ml");
         when(ingredientService.findById(id)).thenReturn(response);
 
-        mockMvc.perform(get("/api/ingredients/" + id))
+        mockMvc.perform(get("/api/v1/ingredients/" + id))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("Leche entera"));
     }
@@ -50,7 +56,7 @@ class IngredientControllerTest {
         UUID id = UUID.randomUUID();
         when(ingredientService.findById(id)).thenThrow(new ResourceNotFoundException("Ingredient not found: " + id));
 
-        mockMvc.perform(get("/api/ingredients/" + id))
+        mockMvc.perform(get("/api/v1/ingredients/" + id))
                 .andExpect(status().isNotFound());
     }
 
@@ -61,7 +67,7 @@ class IngredientControllerTest {
         IngredientResponse response = new IngredientResponse(id, "Leche de almendra", "ml");
         when(ingredientService.create(any(IngredientRequest.class))).thenReturn(response);
 
-        mockMvc.perform(post("/api/ingredients")
+        mockMvc.perform(post("/api/v1/ingredients")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -76,7 +82,7 @@ class IngredientControllerTest {
                 {"name":"Leche de almendra"}
                 """;
 
-        mockMvc.perform(post("/api/ingredients")
+        mockMvc.perform(post("/api/v1/ingredients")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(invalidJson))
                 .andExpect(status().isBadRequest());
@@ -86,7 +92,7 @@ class IngredientControllerTest {
     void delete_retorna204() throws Exception {
         UUID id = UUID.randomUUID();
 
-        mockMvc.perform(delete("/api/ingredients/" + id))
+        mockMvc.perform(delete("/api/v1/ingredients/" + id))
                 .andExpect(status().isNoContent());
     }
 }

@@ -6,7 +6,11 @@ import com.raze.demo.service.IngredientService;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -17,7 +21,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
-import java.util.List;
 import java.util.UUID;
 
 /**
@@ -25,7 +28,7 @@ import java.util.UUID;
  * Proporciona endpoints para realizar operaciones CRUD sobre los ingredientes.
  */
 @RestController
-@RequestMapping("/api/ingredients")
+@RequestMapping("/api/v1/ingredients")
 @RequiredArgsConstructor
 public class IngredientController {
 
@@ -37,8 +40,8 @@ public class IngredientController {
      * @return Lista de {@link IngredientResponse}
      */
     @GetMapping
-    public List<IngredientResponse> findAll() {
-        return service.findAll();
+    public Page<IngredientResponse> findAll(@ParameterObject Pageable pageable) {
+        return service.findAll(pageable);
     }
 
     /**
@@ -58,10 +61,11 @@ public class IngredientController {
      * @param request Datos del nuevo ingrediente
      * @return {@link ResponseEntity} con la respuesta creada
      */
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     @PostMapping
     public ResponseEntity<IngredientResponse> create(@Valid @RequestBody IngredientRequest request) {
         IngredientResponse response = service.create(request);
-        return ResponseEntity.created(URI.create("/api/ingredients/" + response.id())).body(response);
+        return ResponseEntity.created(URI.create("/api/v1/ingredients/" + response.id())).body(response);
     }
 
     /**
@@ -71,6 +75,7 @@ public class IngredientController {
      * @param request Nuevos datos del ingrediente
      * @return {@link IngredientResponse} con los datos actualizados
      */
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     @PutMapping("/{id}")
     public IngredientResponse update(@PathVariable UUID id, @Valid @RequestBody IngredientRequest request) {
         return service.update(id, request);
@@ -82,6 +87,7 @@ public class IngredientController {
      * @param id Identificador UUID del ingrediente a eliminar
      * @return {@link ResponseEntity} sin contenido
      */
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         service.delete(id);

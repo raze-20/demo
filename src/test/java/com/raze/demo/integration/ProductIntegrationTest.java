@@ -14,6 +14,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -47,7 +48,8 @@ class ProductIntegrationTest {
                 {"name":"Cafe caliente","active":true}
                 """;
 
-        MvcResult categoryResult = mockMvc.perform(post("/api/categories")
+        MvcResult categoryResult = mockMvc.perform(post("/api/v1/categories")
+                        .with(user("admin").roles("ADMIN"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(categoryJson))
                 .andExpect(status().isCreated())
@@ -62,7 +64,8 @@ class ProductIntegrationTest {
 
         // POST real: pasa por el controller, el service (que valida que la categoría exista
         // vía CategoryRepository real) y el INSERT real contra Postgres.
-        mockMvc.perform(post("/api/products")
+        mockMvc.perform(post("/api/v1/products")
+                        .with(user("admin").roles("ADMIN"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(productJson))
                 .andExpect(status().isCreated())
@@ -71,10 +74,10 @@ class ProductIntegrationTest {
 
         // GET real: confirma que el producto recién creado aparece en el listado con la
         // relación a su categoría ya resuelta (join real, no un mock que "adivina" el nombre).
-        mockMvc.perform(get("/api/products"))
+        mockMvc.perform(get("/api/v1/products").with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].name").value("Latte"))
-                .andExpect(jsonPath("$[0].categoryName").value("Cafe caliente"));
+                .andExpect(jsonPath("$.content[0].name").value("Latte"))
+                .andExpect(jsonPath("$.content[0].categoryName").value("Cafe caliente"));
     }
 
     @Test
@@ -85,7 +88,8 @@ class ProductIntegrationTest {
                 {"name":"Producto huerfano","basePrice":10.00,"active":true,"categoryId":999999}
                 """;
 
-        mockMvc.perform(post("/api/products")
+        mockMvc.perform(post("/api/v1/products")
+                        .with(user("admin").roles("ADMIN"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(productJson))
                 .andExpect(status().isNotFound());

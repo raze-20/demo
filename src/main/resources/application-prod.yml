@@ -2,3 +2,20 @@ logging:
   level:
     com.raze.demo: INFO
     org.hibernate.SQL: WARN
+
+# En produccion las credenciales de BD son OBLIGATORIAS: sin default, para que la app falle
+# al arrancar si no estan seteadas en el entorno (en vez de caer al default inseguro
+# root/rootpassword de application.yml). JWT_SECRET ya es obligatoria en la config base.
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+
+# La documentación describe la superficie completa de la API (incluidos los endpoints de admin),
+# así que no se publica en produccion.
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

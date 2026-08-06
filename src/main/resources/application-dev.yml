@@ -2,3 +2,21 @@ logging:
   level:
     com.raze.demo: DEBUG
     org.hibernate.SQL: DEBUG
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:dev-only-insecure-secret-change-me-not-for-production-use-0123456789}
+  # Empleado ADMIN que DevDataSeeder crea al arrancar si la base no lo tiene todavia,
+  # para poder hacer login desde el front sobre una base recien migrada. Solo perfil dev.
+  seed:
+    employee:
+      email: raze.armando@gmail.com
+      password: password
+      first-name: Armando
+      last-name: Raze
+      position: Administrador
+    branch:
+      name: Sucursal Centro
+      address: Av. Principal 100
+      city: Ciudad de Mexico
+      state: CDMX

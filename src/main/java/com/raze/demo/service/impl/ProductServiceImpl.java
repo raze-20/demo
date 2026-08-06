@@ -11,10 +11,11 @@ import com.raze.demo.repository.ProductRepository;
 import com.raze.demo.service.ProductService;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.UUID;
 
 /**
@@ -33,11 +34,11 @@ public class ProductServiceImpl implements ProductService{
      * @return Lista de {@link ProductResponse}
      */
     @Transactional(readOnly = true)
-    public List<ProductResponse> findAll() {
-        return productRepository.findByActiveTrue()
-                .stream()
-                .map(this::toResponse)
-                .toList();
+    public Page<ProductResponse> findAll(Integer categoryId, Pageable pageable) {
+        var page = categoryId == null
+                ? productRepository.findByActiveTrue(pageable)
+                : productRepository.findByActiveTrueAndCategoryId(categoryId, pageable);
+        return page.map(this::toResponse);
     }
 
     /**

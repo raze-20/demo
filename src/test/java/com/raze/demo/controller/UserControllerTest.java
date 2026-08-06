@@ -4,11 +4,13 @@ import com.raze.demo.dto.UserRequest;
 import com.raze.demo.dto.UserResponse;
 import com.raze.demo.enums.UserRole;
 import com.raze.demo.exception.DuplicateResourceException;
+import com.raze.demo.security.JwtService;
 import com.raze.demo.service.UserService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
@@ -25,6 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * TEST DE "SLICE" (capa web) — mismo patrón que {@link BranchControllerTest}.
  */
 @WebMvcTest(UserController.class)
+@WithMockUser(roles = "ADMIN")
 class UserControllerTest {
 
     @Autowired
@@ -36,13 +39,16 @@ class UserControllerTest {
     @MockitoBean
     private UserService userService;
 
+    @MockitoBean
+    private JwtService jwtService;
+
     @Test
     void getById_retorna200_conUsuario() throws Exception {
         UUID id = UUID.randomUUID();
         UserResponse response = new UserResponse(id, "ana@example.com", "Ana", "Lopez", UserRole.ADMIN, true, OffsetDateTime.now());
         when(userService.findById(id)).thenReturn(response);
 
-        mockMvc.perform(get("/api/users/" + id))
+        mockMvc.perform(get("/api/v1/users/" + id))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.email").value("ana@example.com"))
                 // La contraseña (ni en texto plano ni el hash) nunca debe viajar en la
@@ -58,7 +64,7 @@ class UserControllerTest {
         UserResponse response = new UserResponse(id, "ana@example.com", "Ana", "Lopez", UserRole.ADMIN, true, OffsetDateTime.now());
         when(userService.create(any(UserRequest.class))).thenReturn(response);
 
-        mockMvc.perform(post("/api/users")
+        mockMvc.perform(post("/api/v1/users")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -73,7 +79,7 @@ class UserControllerTest {
                 {"email":"no-es-un-correo","password":"SuperSecreta123","firstName":"Ana","lastName":"Lopez","role":"ADMIN"}
                 """;
 
-        mockMvc.perform(post("/api/users")
+        mockMvc.perform(post("/api/v1/users")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(invalidJson))
                 .andExpect(status().isBadRequest());
@@ -86,7 +92,7 @@ class UserControllerTest {
                 {"email":"ana@example.com","password":"123","firstName":"Ana","lastName":"Lopez","role":"ADMIN"}
                 """;
 
-        mockMvc.perform(post("/api/users")
+        mockMvc.perform(post("/api/v1/users")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(invalidJson))
                 .andExpect(status().isBadRequest());
@@ -98,7 +104,7 @@ class UserControllerTest {
         when(userService.create(any(UserRequest.class)))
                 .thenThrow(new DuplicateResourceException("User already exists: ana@example.com"));
 
-        mockMvc.perform(post("/api/users")
+        mockMvc.perform(post("/api/v1/users")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict());
@@ -108,7 +114,7 @@ class UserControllerTest {
     void delete_retorna204() throws Exception {
         UUID id = UUID.randomUUID();
 
-        mockMvc.perform(delete("/api/users/" + id))
+        mockMvc.perform(delete("/api/v1/users/" + id))
                 .andExpect(status().isNoContent());
     }
 }

@@ -1,8 +1,8 @@
 # Coffee Demo API
 
-> **Rama:** `main` — Produccion (perfil Spring activo por defecto: `prod`).
+> **Rama:** `main` — Produccion (version `1.1.0`, perfil Spring activo por defecto: `prod`).
 
-Backend REST para gestionar una cafeteria. El proyecto esta construido con Spring Boot, PostgreSQL, JPA y Flyway. Actualmente cubre el modelo de datos principal y expone CRUDs para sucursales, categorias, productos, ingredientes, usuarios, clientes y empleados.
+Backend REST para gestionar una cafeteria. El proyecto esta construido con Spring Boot, PostgreSQL, JPA y Flyway. Cubre el dominio completo del negocio: catalogo (sucursales, categorias, productos, ingredientes), usuarios/clientes/empleados, flujo de ventas (ordenes y pagos) e inventario (recetas y stock por sucursal con descuento automatico al vender). La API esta versionada (`/api/v1`), autenticada con JWT y autorizada por rol, paginada, documentada con OpenAPI/Swagger y empaquetada con Docker + CI.
 
 ## Estado Actual
 
@@ -17,7 +17,7 @@ El proyecto ya tiene una base solida de dominio:
 - Manejo global de errores para recursos no encontrados, duplicados y errores de validacion.
 - Borrado logico (`active=false`) para sucursales, categorias, productos, ingredientes, usuarios, clientes y empleados.
 - Contraseñas de usuario cifradas con `spring-security-crypto` (`PasswordEncoder`).
-- `customers` y `employees` se registran en un solo paso: `POST /api/customers` y `POST /api/employees` crean el `user` (con clave compartida `user_id`) y su perfil en la misma transaccion, en vez de requerir un `userId` de un `user` creado antes por separado. Asi la invariante `user.role` acorde al perfil queda garantizada por construccion.
+- `customers` y `employees` se registran en un solo paso: `POST /api/v1/customers` y `POST /api/v1/employees` crean el `user` (con clave compartida `user_id`) y su perfil en la misma transaccion, en vez de requerir un `userId` de un `user` creado antes por separado. Asi la invariante `user.role` acorde al perfil queda garantizada por construccion.
 - Tests unitarios de servicios con Mockito para `Branch`, `Customer`, `Employee`, `Category`, `Product`, `Ingredient` y `User`.
 - Tests de controlador con `MockMvc` para `branches`, `categories`, `products`, `ingredients`, `users`, `customers` y `employees`.
 - Tests de integracion end-to-end con Testcontainers (Postgres real + Flyway) para `branches`, y para los flujos criticos de catalogo (`categories` + `products`) y alta de usuarios (cifrado de contraseña, correo duplicado).
@@ -32,7 +32,8 @@ El proyecto ya tiene una base solida de dominio:
 - Flyway
 - Lombok
 - Jakarta Validation
-- Spring Security Crypto (hashing de contraseñas)
+- Spring Security + JWT (jjwt) para autenticacion/autorizacion
+- springdoc-openapi (Swagger UI)
 - Testcontainers (tests de integracion)
 - Maven Wrapper
 - Docker Compose para base de datos local
@@ -72,23 +73,54 @@ DB_PASSWORD: rootpassword
 
 `application.yml` usa `spring.jpa.hibernate.ddl-auto=validate`, por lo que Hibernate solo valida que las entidades coincidan con la base. El esquema se crea y evoluciona con Flyway.
 
-## Base De Datos
+Perfiles Spring (se elige con `SPRING_PROFILES_ACTIVE`):
 
-Levantar PostgreSQL:
+- `dev` (default en la rama `dev`): logging verboso (`DEBUG` + SQL), secreto JWT de conveniencia por defecto y siembra del empleado inicial (ver abajo).
+- `test`: se activa automaticamente al correr `mvnw test` (via surefire); logging minimo y secreto JWT de prueba. El datasource lo aporta Testcontainers.
+- `prod` (default en la rama `main`): logging `INFO`, y `DB_URL`/`DB_USERNAME`/`DB_PASSWORD` **obligatorias sin default** — la app no arranca si faltan (evita usar credenciales de desarrollo por accidente). `JWT_SECRET` tambien es obligatoria.
 
-```powershell
-docker compose up -d
+### Empleado inicial (solo perfil `dev`)
+
+Una base recien migrada por Flyway queda vacia y no hay forma de entrar: `POST /api/v1/auth/login` necesita un `user` existente y el resto de la API exige token. `DevDataSeeder` resuelve ese arranque en frio: al levantar la app con el perfil `dev` crea una sucursal de demo y un empleado con rol `ADMIN`, listo para el login del front.
+
+| Campo | Valor por defecto |
+|---|---|
+| Correo | `raze.armando@gmail.com` |
+| Contrasena | `password` |
+| Rol | `ADMIN` |
+| Sucursal | `Sucursal Centro` |
+
+Los valores se configuran en `application-dev.yml` bajo `app.seed.*`. El seeder es idempotente: si ya existe un usuario con ese correo no toca nada, asi que arrancar la app varias veces (o cambiar la contrasena despues) es seguro. En `prod` no se ejecuta — ahi el primer administrador se da de alta a mano, para no dejar credenciales conocidas en produccion.
+
+## Docker
+
+`docker-compose.yml` levanta dos servicios: `postgres-cafeteria` (Postgres 16, con healthcheck) y `app` (la aplicacion, construida desde el `Dockerfile` multi-stage). El servicio `app` espera a que la BD este sana (`depends_on: condition: service_healthy`) antes de arrancar.
+
+Copiar la plantilla de variables y ajustarla (define `JWT_SECRET`, credenciales de BD, perfil):
+
+```bash
+cp .env.example .env
 ```
 
-El archivo `docker-compose.yml` crea:
+Levantar todo (app + base de datos):
 
-- Contenedor: `db_cafeteria`
-- Base: `cafeteria_db`
-- Usuario: `root`
-- Password: `rootpassword`
-- Puerto: `5432`
+```bash
+docker compose up -d --build
+```
 
-Flyway ejecuta `src/main/resources/db/migration/V1__init_schema.sql` al iniciar la aplicacion.
+La API queda en `http://localhost:8080` (Swagger en `http://localhost:8080/swagger-ui.html`). Flyway aplica las migraciones de `src/main/resources/db/migration/` al arrancar la app.
+
+Para levantar solo la base de datos (p. ej. corriendo la app desde el IDE):
+
+```bash
+docker compose up -d postgres-cafeteria
+```
+
+El `Dockerfile` es multi-stage: compila con `eclipse-temurin:25-jdk-alpine` usando el Maven Wrapper y corre el fat jar sobre `eclipse-temurin:25-jre-alpine` como usuario no-root.
+
+## Integracion Continua
+
+`.github/workflows/ci.yml` corre en cada push y pull request a `main`/`dev`: instala JDK 25 (Temurin), cachea `~/.m2` y ejecuta `./mvnw verify` (compila y corre toda la suite). Los runners de GitHub traen Docker, asi que los tests de integracion con Testcontainers funcionan sin configuracion extra.
 
 ## Ejecutar
 
@@ -120,14 +152,61 @@ Empaquetar sin pruebas:
 
 ## Endpoints Actuales
 
+### Auth
+
+```text
+POST   /api/v1/auth/login
+```
+
+Request:
+
+```json
+{
+  "email": "ana@example.com",
+  "password": "SuperSecreta123"
+}
+```
+
+Response (`200`):
+
+```json
+{
+  "token": "eyJhbGciOiJIUzUxMiJ9...",
+  "tokenType": "Bearer",
+  "expiresInMinutes": 60,
+  "role": "ADMIN"
+}
+```
+
+El resto de la API (excepto `POST /api/v1/customers`, que sigue publico para auto-registro) requiere el header `Authorization: Bearer <token>`. Sin token responde `401`; con un rol sin permiso responde `403`. Autorizacion por rol:
+
+| Recurso | Lectura | Escritura |
+|---|---|---|
+| Branches / Categories / Products / Ingredients | cualquier rol autenticado | `ADMIN`, `MANAGER` |
+| Users | `ADMIN` | `ADMIN` |
+| Employees | `ADMIN`, `MANAGER` | `ADMIN`, `MANAGER` |
+| Customers | el propio usuario o `ADMIN`/`MANAGER` | alta publica (auto-registro); baja/edicion: el propio usuario o `ADMIN`/`MANAGER` |
+| Orders | staff (`ADMIN`/`MANAGER`/`CASHIER`/`BARISTA`) o el `customer` dueno de esa orden | `ADMIN`, `MANAGER`, `CASHIER`, `BARISTA` |
+| Recipes / Inventory | cualquier rol autenticado | `ADMIN`, `MANAGER` |
+
+Variables de entorno: `JWT_SECRET` (obligatoria en el perfil `prod`; la app no arranca si falta), `JWT_EXPIRATION_MINUTES` (opcional, default `60`).
+
+### Paginacion, filtros y documentacion
+
+- **Versionado**: todos los endpoints cuelgan de `/api/v1/...`.
+- **Paginacion**: los listados (`GET` de `branches`, `categories`, `products`, `ingredients`, `users`, `customers`, `employees`, `orders`) devuelven una pagina Spring Data (`{ "content": [...], "totalElements": ..., "totalPages": ..., "number": ..., "size": ... }`). Aceptan los parametros estandar `page` (0-based), `size` y `sort` (ej. `?page=0&size=20&sort=name,asc`).
+- **Filtros**: `GET /api/v1/products?categoryId=1` filtra productos por categoria; `GET /api/v1/orders?status=PAID` filtra ordenes por estado. Ambos combinables con la paginacion.
+- **OpenAPI/Swagger**: `GET /v3/api-docs` (JSON) y `/swagger-ui.html` (UI interactiva), publicos (sin token) en `dev`/`test` y **deshabilitados en `prod`** (`springdoc.api-docs.enabled=false`), porque el documento describe la superficie completa de la API incluidos los endpoints de administracion. La UI incluye el boton "Authorize" para pegar el JWT y probar los endpoints protegidos.
+- **Contenido del documento**: las descripciones de cada endpoint salen del Javadoc de controllers y DTOs (via `therapi-runtime-javadoc`), sin duplicarlo en anotaciones `@Operation`/`@Schema`. Ademas se generan automaticamente: los roles que exige cada operacion (leidos de `@PreAuthorize`), las respuestas de error con el esquema `ApiError` (`400`/`404`/`409`/`500`, mas `401`/`403` en los endpoints protegidos) y los parametros `page`/`size`/`sort` de los listados (`@ParameterObject Pageable`). Los endpoints publicos aparecen sin candado porque `SecurityConfig` y Swagger leen la misma lista (`PublicEndpoints`).
+
 ### Branches
 
 ```text
-GET    /api/branches
-GET    /api/branches/{id}
-POST   /api/branches
-PUT    /api/branches/{id}
-DELETE /api/branches/{id}
+GET    /api/v1/branches
+GET    /api/v1/branches/{id}
+POST   /api/v1/branches
+PUT    /api/v1/branches/{id}
+DELETE /api/v1/branches/{id}
 ```
 
 Request:
@@ -141,16 +220,16 @@ Request:
 }
 ```
 
-`DELETE /api/branches/{id}` desactiva la sucursal con `active=false`.
+`DELETE /api/v1/branches/{id}` desactiva la sucursal con `active=false`.
 
 ### Categories
 
 ```text
-GET    /api/categories
-GET    /api/categories/{id}
-POST   /api/categories
-PUT    /api/categories/{id}
-DELETE /api/categories/{id}
+GET    /api/v1/categories
+GET    /api/v1/categories/{id}
+POST   /api/v1/categories
+PUT    /api/v1/categories/{id}
+DELETE /api/v1/categories/{id}
 ```
 
 Request:
@@ -162,16 +241,16 @@ Request:
 }
 ```
 
-`DELETE /api/categories/{id}` desactiva la categoria con `active=false`.
+`DELETE /api/v1/categories/{id}` desactiva la categoria con `active=false`.
 
 ### Products
 
 ```text
-GET    /api/products
-GET    /api/products/{id}
-POST   /api/products
-PUT    /api/products/{id}
-DELETE /api/products/{id}
+GET    /api/v1/products
+GET    /api/v1/products/{id}
+POST   /api/v1/products
+PUT    /api/v1/products/{id}
+DELETE /api/v1/products/{id}
 ```
 
 Request:
@@ -185,16 +264,16 @@ Request:
 }
 ```
 
-`DELETE /api/products/{id}` desactiva el producto con `active=false`.
+`DELETE /api/v1/products/{id}` desactiva el producto con `active=false`.
 
 ### Ingredients
 
 ```text
-GET    /api/ingredients
-GET    /api/ingredients/{id}
-POST   /api/ingredients
-PUT    /api/ingredients/{id}
-DELETE /api/ingredients/{id}
+GET    /api/v1/ingredients
+GET    /api/v1/ingredients/{id}
+POST   /api/v1/ingredients
+PUT    /api/v1/ingredients/{id}
+DELETE /api/v1/ingredients/{id}
 ```
 
 Request:
@@ -206,16 +285,16 @@ Request:
 }
 ```
 
-`DELETE /api/ingredients/{id}` desactiva el ingrediente con `active=false`.
+`DELETE /api/v1/ingredients/{id}` desactiva el ingrediente con `active=false`.
 
 ### Users
 
 ```text
-GET    /api/users
-GET    /api/users/{id}
-POST   /api/users
-PUT    /api/users/{id}
-DELETE /api/users/{id}
+GET    /api/v1/users
+GET    /api/v1/users/{id}
+POST   /api/v1/users
+PUT    /api/v1/users/{id}
+DELETE /api/v1/users/{id}
 ```
 
 Request:
@@ -230,16 +309,16 @@ Request:
 }
 ```
 
-Roles disponibles: `ADMIN`, `MANAGER`, `CASHIER`, `BARISTA`, `CUSTOMER`. La contraseña se cifra con `PasswordEncoder` antes de guardarse. `DELETE /api/users/{id}` desactiva el usuario con `active=false`.
+Roles disponibles: `ADMIN`, `MANAGER`, `CASHIER`, `BARISTA`, `CUSTOMER`. La contraseña se cifra con `PasswordEncoder` antes de guardarse. `DELETE /api/v1/users/{id}` desactiva el usuario con `active=false`.
 
 ### Customers
 
 ```text
-GET    /api/customers
-GET    /api/customers/{userId}
-POST   /api/customers
-PUT    /api/customers/{userId}
-DELETE /api/customers/{userId}
+GET    /api/v1/customers
+GET    /api/v1/customers/{userId}
+POST   /api/v1/customers
+PUT    /api/v1/customers/{userId}
+DELETE /api/v1/customers/{userId}
 ```
 
 Request de `POST` (registra el `user` con rol `CUSTOMER` y su perfil en un solo paso):
@@ -264,16 +343,16 @@ Request de `PUT` (solo datos del perfil, sin credenciales de login):
 }
 ```
 
-`POST /api/customers` responde `409` si ya existe un `user` con ese correo. `DELETE /api/customers/{userId}` desactiva el perfil con `active=false`.
+`POST /api/v1/customers` responde `409` si ya existe un `user` con ese correo. `DELETE /api/v1/customers/{userId}` desactiva el perfil con `active=false`.
 
 ### Employees
 
 ```text
-GET    /api/employees
-GET    /api/employees/{userId}
-POST   /api/employees
-PUT    /api/employees/{userId}
-DELETE /api/employees/{userId}
+GET    /api/v1/employees
+GET    /api/v1/employees/{userId}
+POST   /api/v1/employees
+PUT    /api/v1/employees/{userId}
+DELETE /api/v1/employees/{userId}
 ```
 
 Request de `POST` (registra el `user` con el rol operativo indicado en `type` y su perfil en un solo paso):
@@ -302,21 +381,21 @@ Request de `PUT` (solo datos del perfil y del rol operativo, sin credenciales de
 }
 ```
 
-`type` acepta cualquier rol operativo (`ADMIN`, `MANAGER`, `CASHIER`, `BARISTA`); `CUSTOMER` se rechaza con `400` (esa alta va por `/api/customers`). `POST /api/employees` responde `409` si ya existe un `user` con ese correo y `404` si `branchId` no existe. `DELETE /api/employees/{userId}` desactiva el perfil con `active=false`.
+`type` acepta cualquier rol operativo (`ADMIN`, `MANAGER`, `CASHIER`, `BARISTA`); `CUSTOMER` se rechaza con `400` (esa alta va por `/api/v1/customers`). `POST /api/v1/employees` responde `409` si ya existe un `user` con ese correo y `404` si `branchId` no existe. `DELETE /api/v1/employees/{userId}` desactiva el perfil con `active=false`.
 
 ### Orders (flujo de ventas)
 
 ```text
-GET    /api/orders
-GET    /api/orders/{id}
-POST   /api/orders
-POST   /api/orders/{orderId}/items
-DELETE /api/orders/{orderId}/items/{itemId}
-PATCH  /api/orders/{orderId}/status
-POST   /api/orders/{orderId}/payments
+GET    /api/v1/orders
+GET    /api/v1/orders/{id}
+POST   /api/v1/orders
+POST   /api/v1/orders/{orderId}/items
+DELETE /api/v1/orders/{orderId}/items/{itemId}
+PATCH  /api/v1/orders/{orderId}/status
+POST   /api/v1/orders/{orderId}/payments
 ```
 
-Request de `POST /api/orders` (crea la orden vacia en estado `PENDING`; `customerId` es opcional):
+Request de `POST /api/v1/orders` (crea la orden vacia en estado `PENDING`; `customerId` es opcional):
 
 ```json
 {
@@ -326,7 +405,7 @@ Request de `POST /api/orders` (crea la orden vacia en estado `PENDING`; `custome
 }
 ```
 
-Request de `POST /api/orders/{orderId}/items` (agrega un producto; el precio se toma de `Product.basePrice` en ese instante y queda congelado en el item, sin importar que el precio del producto cambie despues; `quantity` acepta de 1 a 500):
+Request de `POST /api/v1/orders/{orderId}/items` (agrega un producto; el precio se toma de `Product.basePrice` en ese instante y queda congelado en el item, sin importar que el precio del producto cambie despues; `quantity` acepta de 1 a 500):
 
 ```json
 {
@@ -336,7 +415,7 @@ Request de `POST /api/orders/{orderId}/items` (agrega un producto; el precio se 
 }
 ```
 
-Request de `PATCH /api/orders/{orderId}/status` (transiciones manuales del staff; `PAID` nunca se setea aqui, solo la dispara un pago que cubre el total):
+Request de `PATCH /api/v1/orders/{orderId}/status` (transiciones manuales del staff; `PAID` nunca se setea aqui, solo la dispara un pago que cubre el total):
 
 ```json
 {
@@ -346,7 +425,7 @@ Request de `PATCH /api/orders/{orderId}/status` (transiciones manuales del staff
 
 Transiciones validas: `PENDING -> CANCELLED`, `PAID -> PREPARING`, `PAID -> CANCELLED`, `PREPARING -> DELIVERED`, `PREPARING -> CANCELLED`. `DELIVERED` y `CANCELLED` son terminales.
 
-Request de `POST /api/orders/{orderId}/payments` (admite varios pagos parciales con distinto metodo por orden; `amount` acepta hasta 8 digitos enteros y 2 decimales):
+Request de `POST /api/v1/orders/{orderId}/payments` (admite varios pagos parciales con distinto metodo por orden; `amount` acepta hasta 8 digitos enteros y 2 decimales):
 
 ```json
 {
@@ -356,6 +435,48 @@ Request de `POST /api/orders/{orderId}/payments` (admite varios pagos parciales 
 ```
 
 Subtotal, impuestos (`app.tax-rate`, default `0.16`) y total se recalculan en cada alta/baja de item. Los items y el estado solo se pueden modificar mientras la orden este `PENDING`; cuando la suma de los pagos cubre el total, la orden pasa automaticamente a `PAID`. Un pago que exceda el saldo pendiente responde `400`. Si dos operaciones concurrentes chocan sobre la misma orden (bloqueo optimista via `version`), la que pierde la carrera responde `409` y debe reintentarse.
+
+Al pasar la orden a `PAID`, se descuenta automaticamente el stock de ingredientes de la sucursal segun la receta de cada producto vendido (ver **Recipes** e **Inventory**); si algun ingrediente no tiene stock suficiente, el pago se rechaza con `400` y la transaccion completa se revierte (la orden sigue `PENDING`).
+
+### Recipes (receta por producto)
+
+```text
+GET    /api/v1/products/{productId}/recipes
+POST   /api/v1/products/{productId}/recipes
+DELETE /api/v1/products/{productId}/recipes/{ingredientId}
+```
+
+Request de `POST` (agrega un ingrediente a la receta del producto, con la cantidad requerida por unidad vendida):
+
+```json
+{
+  "ingredientId": "b2c3d4e5-2222-3333-4444-555566667777",
+  "requiredQuantity": 150.000
+}
+```
+
+Escritura restringida a `ADMIN`/`MANAGER`. `POST` responde `409` si el ingrediente ya esta en la receta, y `404` si el producto o el ingrediente no existen.
+
+### Inventory (stock por sucursal)
+
+```text
+GET    /api/v1/branches/{branchId}/inventory
+POST   /api/v1/branches/{branchId}/inventory/movements
+GET    /api/v1/branches/{branchId}/inventory/{ingredientId}/movements
+```
+
+Request de `POST .../movements` (registra un movimiento manual de stock; el usuario que lo registra se toma del token):
+
+```json
+{
+  "ingredientId": "b2c3d4e5-2222-3333-4444-555566667777",
+  "type": "INCOMING",
+  "quantity": 500.000,
+  "reason": "Compra semanal"
+}
+```
+
+`type` acepta `INCOMING` (suma stock), `WASTE` y `ADJUSTMENT` (restan stock). `SALE` se rechaza con `400`: esos movimientos solo los genera automaticamente el pago de una orden. Registrar movimientos esta restringido a `ADMIN`/`MANAGER`. Un `WASTE`/`ADJUSTMENT` que deje el stock negativo responde `400`.
 
 ## Modelo De Dominio
 
@@ -394,47 +515,21 @@ Enums PostgreSQL:
 - `Order` usa bloqueo optimista (columna `version`): dos escrituras concurrentes sobre la misma orden (dos pagos, o un pago y un cambio de estado) nunca se pisan en silencio, la segunda recibe `409 Conflict` para reintentar.
 - `GlobalExceptionHandler` tambien cubre violaciones de integridad de datos, conflictos de bloqueo optimista y JSON malformado con el mismo esquema `ApiError`; cualquier excepcion no anticipada responde `500` sin exponer el mensaje/stacktrace real (que si queda en el log del servidor).
 - El flujo de ordenes/pagos registra logging de auditoria (`OrderServiceImpl`, via SLF4J): creacion de orden, alta/baja de items, cambios de estado, pagos registrados e intentos rechazados.
+- Autenticacion/autorizacion real con Spring Security + JWT sin estado (`POST /api/v1/auth/login`); todos los endpoints previos ahora exigen rol via `@PreAuthorize`/`@PostAuthorize`, con reglas de "dueño del recurso" para `customers` y `orders`.
+- Inventario completo: receta (bill of materials) por producto, stock por sucursal con movimientos auditables (`INCOMING`/`WASTE`/`ADJUSTMENT`), y descuento automatico de ingredientes al pagar una orden (movimiento `SALE`), todo dentro de la misma transaccion del pago: si el stock no alcanza, el pago se revierte por completo.
+- API versionada (`/api/v1`), listados paginados (Spring Data `Page` con `page`/`size`/`sort`), filtros (`products?categoryId`, `orders?status`) y documentacion OpenAPI/Swagger (`/swagger-ui.html`, `/v3/api-docs`) con el esquema de seguridad JWT ya declarado.
+- El documento OpenAPI se genera a partir del codigo y no de anotaciones duplicadas: descripciones desde el Javadoc, roles desde `@PreAuthorize`, errores desde el contrato real de `GlobalExceptionHandler` y rutas publicas desde la misma lista que usa `SecurityConfig` (`PublicEndpoints`), asi la documentacion no se desincroniza del comportamiento. En `prod` la documentacion no se publica.
+- Entrega lista: `Dockerfile` multi-stage (Temurin 25, usuario no-root), `docker-compose` con app + Postgres (healthcheck + `depends_on`), y CI en GitHub Actions que corre `./mvnw verify` (incluye Testcontainers) en cada push/PR.
 
 ### Riesgos Y Deuda Tecnica
 
-- No hay endpoints para recetas ni inventario.
-- No hay autenticacion/autorizacion real (login, JWT o sesiones); solo se cifran contraseñas.
-- No hay paginacion, filtros ni ordenamiento en listados.
-- No hay perfiles separados para `dev`, `test` y `prod`.
-- Los tests de integracion dependen de Docker disponible (Testcontainers); hay que asegurarlo en CI.
 - Falta un test de integracion (Testcontainers) para el flujo de registro de `customers`/`employees`; hoy solo esta cubierto con unitarios (Mockito) y de controlador (MockMvc).
+- El pipeline de CI compila y prueba, pero no publica la imagen a ningun registry ni despliega (fuera de alcance por ahora).
 
 ## Siguientes Pasos Recomendados
 
-1. Implementar inventario
-   - Recetas por producto.
-   - Stock por sucursal.
-   - Movimientos de inventario.
-   - Descuento automatico de ingredientes al vender productos (ya existe el flujo de ventas en `/api/orders` que dispararia este descuento).
+El roadmap de "calidad de produccion" (seguridad, inventario, API publica, configuracion por perfil y entrega) esta completo. Mejoras opcionales a futuro:
 
-2. Agregar seguridad
-   - Spring Security.
-   - Login.
-   - JWT o sesiones.
-   - Autorizacion por rol: `ADMIN`, `MANAGER`, `CASHIER`, `BARISTA`, `CUSTOMER`.
-
-4. Mejorar API publica
-   - Paginacion en `GET`.
-   - Filtros por `active`, categoria, sucursal o nombre.
-   - OpenAPI/Swagger.
-   - Versionado de API (`/api/v1/...`).
-
-5. Separar configuraciones
-   - `application-dev.yml`
-   - `application-test.yml`
-   - `application-prod.yml`
-   - Variables de entorno obligatorias para produccion.
-
-6. Preparar entrega
-   - Dockerfile para la aplicacion.
-   - Compose completo con app + database.
-   - Configurar GitHub Actions (CI/CD) para compilar y correr pruebas en cada push.
-
-## Prioridad Sugerida
-
-Con la brecha de tests en los CRUDs ya cerrada (`Category`, `Product`, `Ingredient`, `User` con tests unitarios y de controlador; flujos criticos de catalogo y alta de usuarios con tests de integracion) y con el registro de `customers`/`employees` resuelto de raiz (ya no depende de un `userId` externo, por lo que la invariante `user.role` es imposible de romper), el proximo paso mas valioso es construir el flujo de ordenes y pagos, porque es el centro del negocio. Antes de eso, conviene cubrir el nuevo flujo de registro con un test de integracion (Testcontainers) end-to-end.
+- Publicar la imagen Docker a un registry (ghcr.io) y agregar un job de despliegue al pipeline.
+- Cerrar la brecha de test de integracion del alta de `customers`/`employees`.
+- Refresh tokens / expiracion-renovacion de JWT, rate limiting, y observabilidad (Actuator + metricas).

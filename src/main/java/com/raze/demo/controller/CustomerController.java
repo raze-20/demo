@@ -7,7 +7,12 @@ import com.raze.demo.service.CustomerService;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.parameters.P;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -18,7 +23,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
-import java.util.List;
 import java.util.UUID;
 
 /**
@@ -26,7 +30,7 @@ import java.util.UUID;
  * Proporciona endpoints para realizar operaciones CRUD sobre los perfiles de cliente.
  */
 @RestController
-@RequestMapping("/api/customers")
+@RequestMapping("/api/v1/customers")
 @RequiredArgsConstructor
 public class CustomerController {
 
@@ -37,9 +41,10 @@ public class CustomerController {
      *
      * @return Lista de {@link CustomerResponse}
      */
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     @GetMapping
-    public List<CustomerResponse> findAll() {
-        return service.findAll();
+    public Page<CustomerResponse> findAll(@ParameterObject Pageable pageable) {
+        return service.findAll(pageable);
     }
 
     /**
@@ -48,8 +53,9 @@ public class CustomerController {
      * @param userId Identificador UUID del usuario
      * @return {@link CustomerResponse} con los datos del cliente
      */
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER') or #userId == authentication.principal.id")
     @GetMapping("/{userId}")
-    public CustomerResponse findById(@PathVariable UUID userId) {
+    public CustomerResponse findById(@P("userId") @PathVariable UUID userId) {
         return service.findById(userId);
     }
 
@@ -63,7 +69,7 @@ public class CustomerController {
     @PostMapping
     public ResponseEntity<CustomerResponse> create(@Valid @RequestBody CustomerRequest request) {
         CustomerResponse response = service.create(request);
-        return ResponseEntity.created(URI.create("/api/customers/" + response.userId())).body(response);
+        return ResponseEntity.created(URI.create("/api/v1/customers/" + response.userId())).body(response);
     }
 
     /**
@@ -73,8 +79,9 @@ public class CustomerController {
      * @param request Nuevos datos del cliente
      * @return {@link CustomerResponse} con los datos actualizados
      */
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER') or #userId == authentication.principal.id")
     @PutMapping("/{userId}")
-    public CustomerResponse update(@PathVariable UUID userId, @Valid @RequestBody CustomerUpdateRequest request) {
+    public CustomerResponse update(@P("userId") @PathVariable UUID userId, @Valid @RequestBody CustomerUpdateRequest request) {
         return service.update(userId, request);
     }
 
@@ -84,8 +91,9 @@ public class CustomerController {
      * @param userId Identificador UUID del usuario asociado
      * @return {@link ResponseEntity} sin contenido
      */
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER') or #userId == authentication.principal.id")
     @DeleteMapping("/{userId}")
-    public ResponseEntity<Void> delete(@PathVariable UUID userId) {
+    public ResponseEntity<Void> delete(@P("userId") @PathVariable UUID userId) {
         service.delete(userId);
         return ResponseEntity.noContent().build();
     }

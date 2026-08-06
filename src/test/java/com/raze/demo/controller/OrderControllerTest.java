@@ -10,6 +10,7 @@ import com.raze.demo.enums.PaymentMethod;
 import com.raze.demo.exception.InvalidStateException;
 import com.raze.demo.exception.ResourceNotFoundException;
 import com.raze.demo.model.Order;
+import com.raze.demo.security.JwtService;
 import com.raze.demo.service.OrderService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +18,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
@@ -36,6 +38,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * TEST DE "SLICE" (capa web) — mismo patrón que {@link ProductControllerTest}.
  */
 @WebMvcTest(OrderController.class)
+@WithMockUser(roles = "ADMIN")
 class OrderControllerTest {
 
     @Autowired
@@ -46,6 +49,9 @@ class OrderControllerTest {
 
     @MockitoBean
     private OrderService orderService;
+
+    @MockitoBean
+    private JwtService jwtService;
 
     private OrderResponse sampleResponse(UUID id, OrderStatus status) {
         return new OrderResponse(
@@ -70,7 +76,7 @@ class OrderControllerTest {
         UUID id = UUID.randomUUID();
         when(orderService.findById(id)).thenReturn(sampleResponse(id, OrderStatus.PENDING));
 
-        mockMvc.perform(get("/api/orders/" + id))
+        mockMvc.perform(get("/api/v1/orders/" + id))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("PENDING"));
     }
@@ -80,7 +86,7 @@ class OrderControllerTest {
         UUID id = UUID.randomUUID();
         when(orderService.findById(id)).thenThrow(new ResourceNotFoundException("Order not found: " + id));
 
-        mockMvc.perform(get("/api/orders/" + id))
+        mockMvc.perform(get("/api/v1/orders/" + id))
                 .andExpect(status().isNotFound());
     }
 
@@ -90,7 +96,7 @@ class OrderControllerTest {
         OrderRequest request = new OrderRequest(UUID.randomUUID(), UUID.randomUUID(), null);
         when(orderService.create(any(OrderRequest.class))).thenReturn(sampleResponse(id, OrderStatus.PENDING));
 
-        mockMvc.perform(post("/api/orders")
+        mockMvc.perform(post("/api/v1/orders")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -105,7 +111,7 @@ class OrderControllerTest {
                 {}
                 """;
 
-        mockMvc.perform(post("/api/orders")
+        mockMvc.perform(post("/api/v1/orders")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(invalidJson))
                 .andExpect(status().isBadRequest());
@@ -118,7 +124,7 @@ class OrderControllerTest {
         when(orderService.addItem(eq(orderId), any(OrderItemRequest.class)))
                 .thenReturn(sampleResponse(orderId, OrderStatus.PENDING));
 
-        mockMvc.perform(post("/api/orders/" + orderId + "/items")
+        mockMvc.perform(post("/api/v1/orders/" + orderId + "/items")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -132,7 +138,7 @@ class OrderControllerTest {
         when(orderService.addItem(eq(orderId), any(OrderItemRequest.class)))
                 .thenThrow(new InvalidStateException("Order items can only be modified while PENDING"));
 
-        mockMvc.perform(post("/api/orders/" + orderId + "/items")
+        mockMvc.perform(post("/api/v1/orders/" + orderId + "/items")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
@@ -144,7 +150,7 @@ class OrderControllerTest {
         UUID orderId = UUID.randomUUID();
         OrderItemRequest request = new OrderItemRequest(UUID.randomUUID(), 501, null);
 
-        mockMvc.perform(post("/api/orders/" + orderId + "/items")
+        mockMvc.perform(post("/api/v1/orders/" + orderId + "/items")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
@@ -155,7 +161,7 @@ class OrderControllerTest {
         UUID orderId = UUID.randomUUID();
         UUID itemId = UUID.randomUUID();
 
-        mockMvc.perform(delete("/api/orders/" + orderId + "/items/" + itemId))
+        mockMvc.perform(delete("/api/v1/orders/" + orderId + "/items/" + itemId))
                 .andExpect(status().isNoContent());
     }
 
@@ -166,7 +172,7 @@ class OrderControllerTest {
         when(orderService.updateStatus(eq(orderId), any(OrderStatusUpdateRequest.class)))
                 .thenReturn(sampleResponse(orderId, OrderStatus.CANCELLED));
 
-        mockMvc.perform(patch("/api/orders/" + orderId + "/status")
+        mockMvc.perform(patch("/api/v1/orders/" + orderId + "/status")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -180,7 +186,7 @@ class OrderControllerTest {
         when(orderService.updateStatus(eq(orderId), any(OrderStatusUpdateRequest.class)))
                 .thenThrow(new InvalidStateException("Cannot transition order"));
 
-        mockMvc.perform(patch("/api/orders/" + orderId + "/status")
+        mockMvc.perform(patch("/api/v1/orders/" + orderId + "/status")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
@@ -193,7 +199,7 @@ class OrderControllerTest {
         when(orderService.addPayment(eq(orderId), any(PaymentRequest.class)))
                 .thenReturn(sampleResponse(orderId, OrderStatus.PAID));
 
-        mockMvc.perform(post("/api/orders/" + orderId + "/payments")
+        mockMvc.perform(post("/api/v1/orders/" + orderId + "/payments")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -207,7 +213,7 @@ class OrderControllerTest {
         when(orderService.addPayment(eq(orderId), any(PaymentRequest.class)))
                 .thenThrow(new InvalidStateException("Payment exceeds pending balance"));
 
-        mockMvc.perform(post("/api/orders/" + orderId + "/payments")
+        mockMvc.perform(post("/api/v1/orders/" + orderId + "/payments")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
@@ -222,7 +228,7 @@ class OrderControllerTest {
                 {"method":"CASH","amount":10.999}
                 """;
 
-        mockMvc.perform(post("/api/orders/" + orderId + "/payments")
+        mockMvc.perform(post("/api/v1/orders/" + orderId + "/payments")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(invalidJson))
                 .andExpect(status().isBadRequest());
@@ -238,7 +244,7 @@ class OrderControllerTest {
         when(orderService.addPayment(eq(orderId), any(PaymentRequest.class)))
                 .thenThrow(new ObjectOptimisticLockingFailureException(Order.class, orderId));
 
-        mockMvc.perform(post("/api/orders/" + orderId + "/payments")
+        mockMvc.perform(post("/api/v1/orders/" + orderId + "/payments")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict());
@@ -251,7 +257,7 @@ class OrderControllerTest {
         when(orderService.addPayment(eq(orderId), any(PaymentRequest.class)))
                 .thenThrow(new DataIntegrityViolationException("constraint violation"));
 
-        mockMvc.perform(post("/api/orders/" + orderId + "/payments")
+        mockMvc.perform(post("/api/v1/orders/" + orderId + "/payments")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict());

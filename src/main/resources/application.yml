@@ -20,3 +20,6 @@ spring:
 
 app:
   tax-rate: 0.16
+  jwt:
+    secret: ${JWT_SECRET}
+    expiration-minutes: ${JWT_EXPIRATION_MINUTES:60}

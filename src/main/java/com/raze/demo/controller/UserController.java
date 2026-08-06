@@ -6,7 +6,11 @@ import com.raze.demo.service.UserService;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -17,7 +21,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
-import java.util.List;
 import java.util.UUID;
 
 /**
@@ -25,8 +28,9 @@ import java.util.UUID;
  * Proporciona endpoints para realizar operaciones CRUD sobre los diferentes usuarios.
  */
 @RestController
-@RequestMapping("/api/users")
+@RequestMapping("/api/v1/users")
 @RequiredArgsConstructor
+@PreAuthorize("hasRole('ADMIN')")
 public class UserController {
 
     private final UserService service;
@@ -37,8 +41,8 @@ public class UserController {
      * @return Lista de {@link UserResponse}
      */
     @GetMapping
-    public List<UserResponse> findAll() {
-        return service.findAll();
+    public Page<UserResponse> findAll(@ParameterObject Pageable pageable) {
+        return service.findAll(pageable);
     }
 
     /**
@@ -61,7 +65,7 @@ public class UserController {
     @PostMapping
     public ResponseEntity<UserResponse> create(@Valid @RequestBody UserRequest request) {
         UserResponse response = service.create(request);
-        return ResponseEntity.created(URI.create("/api/users/" + response.id())).body(response);
+        return ResponseEntity.created(URI.create("/api/v1/users/" + response.id())).body(response);
     }
 
     /**
