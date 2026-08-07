@@ -9,9 +9,9 @@
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.raze</groupId>
-	<artifactId>demo</artifactId>
+	<artifactId>coffeeshop</artifactId>
 	<version>1.1.0</version>
-	<name>coffee-demo</name>
+	<name>coffeeshop-api</name>
 	<description>Coffee shop backend REST API (Spring Boot, PostgreSQL, JPA, Flyway) - branches, products, orders and payments.</description>
 	<url/>
 	<licenses>

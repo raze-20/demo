@@ -3,7 +3,7 @@
 # de prueba (nunca para produccion).
 logging:
   level:
-    com.raze.demo: WARN
+    com.raze.coffeeshop: WARN
     org.hibernate.SQL: WARN
 
 app:

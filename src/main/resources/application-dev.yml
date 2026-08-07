@@ -1,6 +1,6 @@
 logging:
   level:
-    com.raze.demo: DEBUG
+    com.raze.coffeeshop: DEBUG
     org.hibernate.SQL: DEBUG
 
 app:

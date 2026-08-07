@@ -1,4 +1,4 @@
-# Coffee Demo API
+# Coffee Shop API
 
 > **Rama:** `main` — Produccion (version `1.1.0`, perfil Spring activo por defecto: `prod`).
 
@@ -74,7 +74,7 @@ DB_URL=jdbc:postgresql://host:5432/cafeteria_db \
 DB_USERNAME=... \
 DB_PASSWORD=... \
 JWT_SECRET=... \
-java -jar target/demo-1.1.0.jar
+java -jar target/coffeeshop-1.1.0.jar
 ```
 
 ### Primer administrador
@@ -104,7 +104,7 @@ El pipeline compila y prueba, pero no publica imagen a un registry ni despliega.
 ## Estructura
 
 ```text
-src/main/java/com/raze/demo
+src/main/java/com/raze/coffeeshop
   config/          Configuracion (seguridad, OpenAPI, encoders)
   controller/      Controladores REST
   dto/             Requests y responses de la API
