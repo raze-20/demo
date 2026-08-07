@@ -92,6 +92,58 @@ Una base recien migrada por Flyway queda vacia y no hay forma de entrar: `POST /
 
 Los valores se configuran en `application-dev.yml` bajo `app.seed.*`. El seeder es idempotente: si ya existe un usuario con ese correo no toca nada, asi que arrancar la app varias veces (o cambiar la contrasena despues) es seguro. En `prod` no se ejecuta — ahi el primer administrador se da de alta a mano, para no dejar credenciales conocidas en produccion.
 
+### Datos de prueba (solo perfil `dev`)
+
+`db/seed/V900__seed_dev_data.sql` deja la base lista para ejecutar una compra completa sin cargar nada a mano: dos sucursales, tres categorias, ocho ingredientes, siete productos con sus recetas, stock por sucursal, usuarios de cada rol y una orden ya pagada para que los listados no arranquen vacios.
+
+Es una migracion Flyway normal, pero vive en `db/seed/` y no en `db/migration/`: **solo el perfil `dev` incluye esa location** (`spring.flyway.locations` en `application-dev.yml`), asi que los datos de demostracion no pueden aplicarse en `prod` aunque la rama se mergee. Numera desde `V900` para no competir nunca con la numeracion del esquema, y `dev` activa `spring.flyway.out-of-order` para que agregar un `V6` mas adelante no falle en una base que ya tiene el seed.
+
+Usuarios sembrados (contrasena `password` en todos):
+
+| Correo | Rol | Notas |
+|---|---|---|
+| `gerente@coffeeshop.dev` | `MANAGER` | Empleado en Sucursal Centro |
+| `cajero@coffeeshop.dev` | `CASHIER` | Empleado en Sucursal Centro; es quien vende en el ejemplo |
+| `barista@coffeeshop.dev` | `BARISTA` | Empleado en Sucursal Centro |
+| `cliente@coffeeshop.dev` | `CUSTOMER` | Perfil de cliente con 120 puntos |
+
+Los UUID son fijos y legibles para pegarlos directo en curl o Postman:
+
+```text
+Sucursal Centro   11111111-1111-1111-1111-111111111111
+Sucursal Norte    11111111-1111-1111-1111-222222222222
+Cajero            44444444-0000-0000-0000-000000000002
+Cliente           44444444-0000-0000-0000-000000000004
+Latte             33333333-0000-0000-0000-000000000003
+Croissant         33333333-0000-0000-0000-000000000007
+```
+
+Compra de punta a punta: login como cajero, crear la orden, agregar items, pagar. Al cubrirse el total la orden pasa a `PAID` y se descuenta el inventario segun las recetas.
+
+```bash
+TOKEN=$(curl -s -X POST localhost:8080/api/v1/auth/login -H 'Content-Type: application/json' \
+  -d '{"email":"cajero@coffeeshop.dev","password":"password"}' | jq -r .token)
+
+ORDER=$(curl -s -X POST localhost:8080/api/v1/orders -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"branchId":"11111111-1111-1111-1111-111111111111","employeeId":"44444444-0000-0000-0000-000000000002","customerId":"44444444-0000-0000-0000-000000000004"}' | jq -r .id)
+
+curl -s -X POST localhost:8080/api/v1/orders/$ORDER/items -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"productId":"33333333-0000-0000-0000-000000000003","quantity":3}'   # 3 Latte -> total 191.40
+
+curl -s -X POST localhost:8080/api/v1/orders/$ORDER/payments -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"method":"CASH","amount":100.00}'   # parcial: sigue PENDING
+
+curl -s -X POST localhost:8080/api/v1/orders/$ORDER/payments -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"method":"CARD","amount":91.40}'    # cubre el total: pasa a PAID
+```
+
+Dos casos limite quedan sembrados a proposito para probarlos sin preparar nada:
+
+- El **Croissant no tiene receta**: se vende bien y no mueve inventario, que es el comportamiento correcto para un producto que no se arma con ingredientes registrados.
+- **Sucursal Norte tiene solo 10 g de chocolate** y un Mocha consume 20 g. Pagar dos Mocha ahi responde `400` por stock insuficiente, la orden se queda en `PENDING` y no se descuenta nada: sirve para comprobar que el pago revierte la transaccion completa.
+
 ## Docker
 
 `docker-compose.yml` levanta dos servicios: `postgres-cafeteria` (Postgres 16, con healthcheck) y `app` (la aplicacion, construida desde el `Dockerfile` multi-stage). El servicio `app` espera a que la BD este sana (`depends_on: condition: service_healthy`) antes de arrancar.

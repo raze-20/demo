@@ -3,6 +3,16 @@ logging:
     com.raze.coffeeshop: DEBUG
     org.hibernate.SQL: DEBUG
 
+spring:
+  flyway:
+    # Solo dev suma db/seed a las migraciones de esquema. Los datos de demostracion viven en esa
+    # location aparte justamente para que no puedan aplicarse en prod al mergear la rama.
+    locations: classpath:db/migration,classpath:db/seed
+    # El seed usa versiones altas (V900+) para no competir con la numeracion del esquema. Sin
+    # out-of-order, agregar despues un V6 en db/migration fallaria en una base dev que ya tiene
+    # el V900 aplicado, porque quedaria pendiente una version menor que la ultima migrada.
+    out-of-order: true
+
 app:
   jwt:
     secret: ${JWT_SECRET:dev-only-insecure-secret-change-me-not-for-production-use-0123456789}
