@@ -10,7 +10,7 @@
 	</parent>
 	<groupId>com.raze</groupId>
 	<artifactId>coffeeshop</artifactId>
-	<version>1.2.0-SNAPSHOT</version>
+	<version>1.3.0-SNAPSHOT</version>
 	<name>coffeeshop-api</name>
 	<description>Coffee shop backend REST API (Spring Boot, PostgreSQL, JPA, Flyway) - branches, products, orders and payments.</description>
 	<url/>

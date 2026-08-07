@@ -1,6 +1,6 @@
 # Coffee Shop API
 
-> **Rama:** `dev` — Desarrollo (version `1.2.0-SNAPSHOT`, perfil Spring activo por defecto: `dev`).
+> **Rama:** `dev` — Desarrollo (version `1.3.0-SNAPSHOT`, perfil Spring activo por defecto: `dev`).
 
 Backend REST para gestionar una cafeteria. El proyecto esta construido con Spring Boot, PostgreSQL, JPA y Flyway. Cubre el dominio completo del negocio: catalogo (sucursales, categorias, productos, ingredientes), usuarios/clientes/empleados, flujo de ventas (ordenes y pagos) e inventario (recetas y stock por sucursal con descuento automatico al vender). La API esta versionada (`/api/v1`), autenticada con JWT y autorizada por rol, paginada, documentada con OpenAPI/Swagger y empaquetada con Docker + CI.
 
