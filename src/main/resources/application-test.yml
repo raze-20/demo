@@ -6,6 +6,15 @@ logging:
     com.raze.coffeeshop: WARN
     org.hibernate.SQL: WARN
 
+# AuthIntegrationTest comprueba que /v3/api-docs responde sin token, asi que en test la
+# documentacion queda publicada. Explicito para no arrastrar el aviso de springdoc en cada
+# arranque de contexto de la suite.
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
 app:
   jwt:
     secret: ${JWT_SECRET:test-only-insecure-secret-change-me-not-for-production-use-0123456789}

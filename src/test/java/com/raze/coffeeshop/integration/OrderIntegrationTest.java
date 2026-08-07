@@ -9,7 +9,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import tools.jackson.databind.JsonNode;
@@ -41,7 +41,7 @@ class OrderIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:16-alpine");
 
     @Autowired
     private MockMvc mockMvc;
@@ -98,7 +98,7 @@ class OrderIntegrationTest {
                 .andExpect(status().isCreated())
                 .andReturn();
         String employeeId = objectMapper.readTree(employeeResult.getResponse().getContentAsString())
-                .get("userId").asText();
+                .get("userId").asString();
 
         String orderJson = """
                 {"branchId":"%s","employeeId":"%s"}
@@ -218,6 +218,6 @@ class OrderIntegrationTest {
 
     private String readField(MvcResult result, String field) throws Exception {
         JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
-        return body.get(field).asText();
+        return body.get(field).asString();
     }
 }

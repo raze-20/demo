@@ -13,6 +13,14 @@ spring:
     # el V900 aplicado, porque quedaria pendiente una version menor que la ultima migrada.
     out-of-order: true
 
+# En dev la documentacion SI se publica. Se declara explicito (aunque true sea el default)
+# porque springdoc avisa en cada arranque mientras la propiedad no este puesta a proposito.
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
 app:
   jwt:
     secret: ${JWT_SECRET:dev-only-insecure-secret-change-me-not-for-production-use-0123456789}

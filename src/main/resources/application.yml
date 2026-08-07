@@ -10,9 +10,13 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate # REGLA DE ORO: Solo valida que Java y SQL coincidan, NO altera la base.
+    # Esta es una API REST: cada service mapea a DTO dentro de su propia @Transactional, asi que
+    # no hace falta mantener la sesion de Hibernate abierta hasta que se serializa la respuesta.
+    # Dejarlo en true (el default) esconderia consultas N+1 disparadas fuera de la transaccion.
+    open-in-view: false
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
+        # El dialecto no se declara: Hibernate lo detecta del driver y declararlo emite HHH90000025.
         '[format_sql]': true
   flyway:
     enabled: true

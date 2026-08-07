@@ -20,7 +20,7 @@ El proyecto ya tiene una base solida de dominio:
 - `customers` y `employees` se registran en un solo paso: `POST /api/v1/customers` y `POST /api/v1/employees` crean el `user` (con clave compartida `user_id`) y su perfil en la misma transaccion, en vez de requerir un `userId` de un `user` creado antes por separado. Asi la invariante `user.role` acorde al perfil queda garantizada por construccion.
 - Tests unitarios de servicios con Mockito para `Branch`, `Customer`, `Employee`, `Category`, `Product`, `Ingredient` y `User`.
 - Tests de controlador con `MockMvc` para `branches`, `categories`, `products`, `ingredients`, `users`, `customers` y `employees`.
-- Tests de integracion end-to-end con Testcontainers (Postgres real + Flyway) para `branches`, y para los flujos criticos de catalogo (`categories` + `products`) y alta de usuarios (cifrado de contraseña, correo duplicado).
+- Tests de integracion end-to-end con Testcontainers (Postgres real + Flyway) para `branches`, catalogo (`categories` + `products`), alta de usuarios (cifrado de contraseña, correo duplicado), registro de `customers`/`employees`, autenticacion/autorizacion por rol, ventas (orden -> items -> pagos), inventario y bloqueo optimista.
 
 ## Stack Tecnico
 
@@ -194,7 +194,7 @@ $env:Path="$env:JAVA_HOME\bin;$env:Path"
 .\mvnw.cmd test
 ```
 
-> El test de integracion (`BranchIntegrationTest`) usa Testcontainers y necesita un daemon de Docker disponible localmente o en CI.
+> Los tests de integracion (`src/test/java/com/raze/coffeeshop/integration/`) usan Testcontainers y necesitan un daemon de Docker disponible localmente o en CI.
 
 Empaquetar sin pruebas:
 
@@ -575,7 +575,6 @@ Enums PostgreSQL:
 
 ### Riesgos Y Deuda Tecnica
 
-- Falta un test de integracion (Testcontainers) para el flujo de registro de `customers`/`employees`; hoy solo esta cubierto con unitarios (Mockito) y de controlador (MockMvc).
 - El pipeline de CI compila y prueba, pero no publica la imagen a ningun registry ni despliega (fuera de alcance por ahora).
 
 ## Siguientes Pasos Recomendados
@@ -583,5 +582,4 @@ Enums PostgreSQL:
 El roadmap de "calidad de produccion" (seguridad, inventario, API publica, configuracion por perfil y entrega) esta completo. Mejoras opcionales a futuro:
 
 - Publicar la imagen Docker a un registry (ghcr.io) y agregar un job de despliegue al pipeline.
-- Cerrar la brecha de test de integracion del alta de `customers`/`employees`.
 - Refresh tokens / expiracion-renovacion de JWT, rate limiting, y observabilidad (Actuator + metricas).
