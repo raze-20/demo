@@ -4,24 +4,6 @@
 
 Backend REST para gestionar una cafeteria. El proyecto esta construido con Spring Boot, PostgreSQL, JPA y Flyway. Cubre el dominio completo del negocio: catalogo (sucursales, categorias, productos, ingredientes), usuarios/clientes/empleados, flujo de ventas (ordenes y pagos) e inventario (recetas y stock por sucursal con descuento automatico al vender). La API esta versionada (`/api/v1`), autenticada con JWT y autorizada por rol, paginada, documentada con OpenAPI/Swagger y empaquetada con Docker + CI.
 
-## Estado Actual
-
-El proyecto ya tiene una base solida de dominio:
-
-- Base de datos PostgreSQL definida con Flyway.
-- Entidades JPA para usuarios, clientes, empleados, sucursales, categorias, productos, ingredientes, recetas, inventario, ordenes, items de orden y pagos.
-- Repositorios Spring Data para todas las entidades principales.
-- API REST funcional para `branches`, `categories`, `products`, `ingredients`, `users`, `customers` y `employees`.
-- DTOs de entrada/salida para no exponer entidades JPA directamente en los controladores.
-- Validacion con Jakarta Validation.
-- Manejo global de errores para recursos no encontrados, duplicados y errores de validacion.
-- Borrado logico (`active=false`) para sucursales, categorias, productos, ingredientes, usuarios, clientes y empleados.
-- Contraseñas de usuario cifradas con `spring-security-crypto` (`PasswordEncoder`).
-- `customers` y `employees` se registran en un solo paso: `POST /api/v1/customers` y `POST /api/v1/employees` crean el `user` (con clave compartida `user_id`) y su perfil en la misma transaccion, en vez de requerir un `userId` de un `user` creado antes por separado. Asi la invariante `user.role` acorde al perfil queda garantizada por construccion.
-- Tests unitarios de servicios con Mockito para `Branch`, `Customer`, `Employee`, `Category`, `Product`, `Ingredient` y `User`.
-- Tests de controlador con `MockMvc` para `branches`, `categories`, `products`, `ingredients`, `users`, `customers` y `employees`.
-- Tests de integracion end-to-end con Testcontainers (Postgres real + Flyway) para `branches`, y para los flujos criticos de catalogo (`categories` + `products`) y alta de usuarios (cifrado de contraseña, correo duplicado).
-
 ## Stack Tecnico
 
 - Java 25
@@ -36,123 +18,111 @@ El proyecto ya tiene una base solida de dominio:
 - springdoc-openapi (Swagger UI)
 - Testcontainers (tests de integracion)
 - Maven Wrapper
-- Docker Compose para base de datos local
+- Docker / Docker Compose
+
+## Configuracion
+
+La aplicacion se configura por variables de entorno. En el perfil `prod` las credenciales de base de datos y el secreto JWT **no tienen valor por defecto**: si faltan, la app no arranca. Es deliberado, para que un despliegue mal configurado falle al iniciar en vez de caer silenciosamente a las credenciales de desarrollo.
+
+| Variable | Obligatoria en `prod` | Default | Descripcion |
+|---|---|---|---|
+| `DB_URL` | si | — | JDBC de PostgreSQL, ej. `jdbc:postgresql://host:5432/cafeteria_db` |
+| `DB_USERNAME` | si | — | Usuario de la base |
+| `DB_PASSWORD` | si | — | Contrasena de la base |
+| `JWT_SECRET` | si | — | Secreto de firma de los JWT. Cadena larga y aleatoria, minimo 32 caracteres |
+| `JWT_EXPIRATION_MINUTES` | no | `60` | Vigencia del token emitido en el login |
+| `SPRING_PROFILES_ACTIVE` | no | `prod` | Perfil Spring |
+| `APP_TAX_RATE` | no | `0.16` | Tasa de impuesto aplicada al total de la orden (`app.tax-rate`) |
+
+El esquema lo crea y evoluciona **Flyway** (`src/main/resources/db/migration/`), que corre automaticamente al arrancar la app. `spring.jpa.hibernate.ddl-auto=validate`, asi que Hibernate solo verifica que las entidades coincidan con la base y nunca la altera.
+
+### Perfiles
+
+- **`prod`** (el de esta rama): logging `INFO`, variables de entorno obligatorias sin default, y documentacion OpenAPI/Swagger deshabilitada.
+- `dev` y `test` existen para desarrollo y para la suite de pruebas. Su configuracion y los datos de arranque que traen se documentan en la rama `dev`; nada de eso se activa en `prod`.
+
+## Despliegue
+
+### Con Docker Compose (app + base de datos)
+
+`docker-compose.yml` levanta `postgres-cafeteria` (Postgres 16 con healthcheck y volumen persistente) y `app` (construida desde el `Dockerfile` multi-stage). El servicio `app` espera a que la BD este sana (`depends_on: condition: service_healthy`) antes de arrancar.
+
+Copiar la plantilla de variables y ajustarla — como minimo, definir un `JWT_SECRET` real y credenciales de BD propias:
+
+```bash
+cp .env.example .env
+```
+
+Levantar:
+
+```bash
+docker compose up -d --build
+```
+
+La API queda en `http://localhost:8080`. Flyway aplica las migraciones al arrancar la app.
+
+> Los valores de `.env.example` son una plantilla, no credenciales de produccion. Cambiar `JWT_SECRET`, `DB_USERNAME` y `DB_PASSWORD` antes de exponer el servicio. El archivo `.env` esta gitignoreado.
+
+### Con el jar
+
+El `Dockerfile` es multi-stage: compila con `eclipse-temurin:25-jdk-alpine` usando el Maven Wrapper y corre el fat jar sobre `eclipse-temurin:25-jre-alpine` como usuario no-root. Para desplegar el jar directamente hace falta un JDK 25:
+
+```bash
+./mvnw -DskipTests package
+
+DB_URL=jdbc:postgresql://host:5432/cafeteria_db \
+DB_USERNAME=... \
+DB_PASSWORD=... \
+JWT_SECRET=... \
+java -jar target/demo-1.1.0.jar
+```
+
+### Primer administrador
+
+Una base recien migrada por Flyway queda vacia, y en `prod` no se siembra ningun usuario. Como `POST /api/v1/users` exige rol `ADMIN`, hace falta un arranque en frio manual. Los unicos endpoints publicos son `/api/v1/auth/**` y `POST /api/v1/customers`, asi que el camino mas seguro es registrar el usuario por la API (para que la contrasena se cifre con el mismo `BCryptPasswordEncoder` que usa el login) y promoverlo despues en la base:
+
+```bash
+curl -X POST http://localhost:8080/api/v1/customers \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@tudominio.com","password":"<contrasena-fuerte>","firstName":"...","lastName":"..."}'
+```
+
+```sql
+-- Promover ese usuario a ADMIN y quitarle el perfil de cliente.
+UPDATE users SET role = 'ADMIN' WHERE email = 'admin@tudominio.com';
+DELETE FROM customers WHERE user_id = (SELECT id FROM users WHERE email = 'admin@tudominio.com');
+```
+
+A partir de ahi, ese usuario puede crear el resto de empleados y administradores via `POST /api/v1/employees`. Conviene cerrar el ciclo cuanto antes y no dejar el acceso a la base abierto.
+
+## Integracion Continua
+
+`.github/workflows/ci.yml` corre en cada push y pull request a `main`/`dev`: instala JDK 25 (Temurin), cachea `~/.m2` y ejecuta `./mvnw verify` (compila y corre toda la suite: unitarios con Mockito, de controlador con MockMvc y de integracion end-to-end con Testcontainers sobre Postgres real). Los runners de GitHub traen Docker, asi que Testcontainers funciona sin configuracion extra; para correr `verify` localmente hace falta un daemon de Docker disponible.
+
+El pipeline compila y prueba, pero no publica imagen a un registry ni despliega.
 
 ## Estructura
 
 ```text
 src/main/java/com/raze/demo
+  config/          Configuracion (seguridad, OpenAPI, encoders)
   controller/      Controladores REST
   dto/             Requests y responses de la API
   enums/           Enums del dominio
   exception/       Excepciones y handler global
   model/           Entidades JPA
   repository/      Repositorios Spring Data
+  security/        Filtro JWT y manejo de 401/403
   service/         Interfaces de servicios
   service/impl/    Implementaciones de servicios
 
 src/main/resources
-  application.yml
-  db/migration/V1__init_schema.sql
-
-src/test/java/com/raze/demo
-  controller/      Tests de controlador (MockMvc)
-  integration/     Tests de integracion end-to-end (Testcontainers)
-  service/impl/    Tests unitarios de servicios (Mockito)
+  application.yml           Configuracion base
+  application-{dev,test,prod}.yml
+  db/migration/             Migraciones Flyway (V1..V5)
 ```
 
-## Configuracion
-
-La aplicacion usa variables de entorno con valores por defecto para desarrollo local:
-
-```yaml
-DB_URL: jdbc:postgresql://localhost:5432/cafeteria_db
-DB_USERNAME: root
-DB_PASSWORD: rootpassword
-```
-
-`application.yml` usa `spring.jpa.hibernate.ddl-auto=validate`, por lo que Hibernate solo valida que las entidades coincidan con la base. El esquema se crea y evoluciona con Flyway.
-
-Perfiles Spring (se elige con `SPRING_PROFILES_ACTIVE`):
-
-- `dev` (default en la rama `dev`): logging verboso (`DEBUG` + SQL), secreto JWT de conveniencia por defecto y siembra del empleado inicial (ver abajo).
-- `test`: se activa automaticamente al correr `mvnw test` (via surefire); logging minimo y secreto JWT de prueba. El datasource lo aporta Testcontainers.
-- `prod` (default en la rama `main`): logging `INFO`, y `DB_URL`/`DB_USERNAME`/`DB_PASSWORD` **obligatorias sin default** — la app no arranca si faltan (evita usar credenciales de desarrollo por accidente). `JWT_SECRET` tambien es obligatoria.
-
-### Empleado inicial (solo perfil `dev`)
-
-Una base recien migrada por Flyway queda vacia y no hay forma de entrar: `POST /api/v1/auth/login` necesita un `user` existente y el resto de la API exige token. `DevDataSeeder` resuelve ese arranque en frio: al levantar la app con el perfil `dev` crea una sucursal de demo y un empleado con rol `ADMIN`, listo para el login del front.
-
-| Campo | Valor por defecto |
-|---|---|
-| Correo | `raze.armando@gmail.com` |
-| Contrasena | `password` |
-| Rol | `ADMIN` |
-| Sucursal | `Sucursal Centro` |
-
-Los valores se configuran en `application-dev.yml` bajo `app.seed.*`. El seeder es idempotente: si ya existe un usuario con ese correo no toca nada, asi que arrancar la app varias veces (o cambiar la contrasena despues) es seguro. En `prod` no se ejecuta — ahi el primer administrador se da de alta a mano, para no dejar credenciales conocidas en produccion.
-
-## Docker
-
-`docker-compose.yml` levanta dos servicios: `postgres-cafeteria` (Postgres 16, con healthcheck) y `app` (la aplicacion, construida desde el `Dockerfile` multi-stage). El servicio `app` espera a que la BD este sana (`depends_on: condition: service_healthy`) antes de arrancar.
-
-Copiar la plantilla de variables y ajustarla (define `JWT_SECRET`, credenciales de BD, perfil):
-
-```bash
-cp .env.example .env
-```
-
-Levantar todo (app + base de datos):
-
-```bash
-docker compose up -d --build
-```
-
-La API queda en `http://localhost:8080` (Swagger en `http://localhost:8080/swagger-ui.html`). Flyway aplica las migraciones de `src/main/resources/db/migration/` al arrancar la app.
-
-Para levantar solo la base de datos (p. ej. corriendo la app desde el IDE):
-
-```bash
-docker compose up -d postgres-cafeteria
-```
-
-El `Dockerfile` es multi-stage: compila con `eclipse-temurin:25-jdk-alpine` usando el Maven Wrapper y corre el fat jar sobre `eclipse-temurin:25-jre-alpine` como usuario no-root.
-
-## Integracion Continua
-
-`.github/workflows/ci.yml` corre en cada push y pull request a `main`/`dev`: instala JDK 25 (Temurin), cachea `~/.m2` y ejecuta `./mvnw verify` (compila y corre toda la suite). Los runners de GitHub traen Docker, asi que los tests de integracion con Testcontainers funcionan sin configuracion extra.
-
-## Ejecutar
-
-En Windows, con JDK 25. La ruta de `JAVA_HOME` depende de donde este instalado el JDK en cada maquina; usa la que corresponda:
-
-```powershell
-$env:JAVA_HOME='C:\Program Files\Eclipse Adoptium\jdk-25.0.2.10-hotspot'  # instalacion estandar de Eclipse Adoptium
-$env:JAVA_HOME='D:\new\jdk'                                              # ruta usada en esta maquina
-$env:Path="$env:JAVA_HOME\bin;$env:Path"
-.\mvnw.cmd spring-boot:run
-```
-
-Ejecutar pruebas:
-
-```powershell
-$env:JAVA_HOME='C:\Program Files\Eclipse Adoptium\jdk-25.0.2.10-hotspot'  # instalacion estandar de Eclipse Adoptium
-$env:JAVA_HOME='D:\new\jdk'                                              # ruta usada en esta maquina
-$env:Path="$env:JAVA_HOME\bin;$env:Path"
-.\mvnw.cmd test
-```
-
-> El test de integracion (`BranchIntegrationTest`) usa Testcontainers y necesita un daemon de Docker disponible localmente o en CI.
-
-Empaquetar sin pruebas:
-
-```powershell
-.\mvnw.cmd -DskipTests package
-```
-
-## Endpoints Actuales
-
-### Auth
+## Autenticacion
 
 ```text
 POST   /api/v1/auth/login
@@ -178,7 +148,9 @@ Response (`200`):
 }
 ```
 
-El resto de la API (excepto `POST /api/v1/customers`, que sigue publico para auto-registro) requiere el header `Authorization: Bearer <token>`. Sin token responde `401`; con un rol sin permiso responde `403`. Autorizacion por rol:
+El resto de la API (excepto `POST /api/v1/customers`, que sigue publico para auto-registro) requiere el header `Authorization: Bearer <token>`. Sin token responde `401`; con un rol sin permiso responde `403`. La sesion es stateless: no hay cookie ni estado en el servidor.
+
+Autorizacion por rol:
 
 | Recurso | Lectura | Escritura |
 |---|---|---|
@@ -189,15 +161,19 @@ El resto de la API (excepto `POST /api/v1/customers`, que sigue publico para aut
 | Orders | staff (`ADMIN`/`MANAGER`/`CASHIER`/`BARISTA`) o el `customer` dueno de esa orden | `ADMIN`, `MANAGER`, `CASHIER`, `BARISTA` |
 | Recipes / Inventory | cualquier rol autenticado | `ADMIN`, `MANAGER` |
 
-Variables de entorno: `JWT_SECRET` (obligatoria en el perfil `prod`; la app no arranca si falta), `JWT_EXPIRATION_MINUTES` (opcional, default `60`).
+La lista de rutas publicas vive en un solo lugar (`PublicEndpoints`), que consumen tanto `SecurityConfig` como el generador de OpenAPI, para que la documentacion no pueda desincronizarse de lo que realmente se deja pasar sin token.
 
-### Paginacion, filtros y documentacion
+## Convenciones De La API
 
 - **Versionado**: todos los endpoints cuelgan de `/api/v1/...`.
 - **Paginacion**: los listados (`GET` de `branches`, `categories`, `products`, `ingredients`, `users`, `customers`, `employees`, `orders`) devuelven una pagina Spring Data (`{ "content": [...], "totalElements": ..., "totalPages": ..., "number": ..., "size": ... }`). Aceptan los parametros estandar `page` (0-based), `size` y `sort` (ej. `?page=0&size=20&sort=name,asc`).
 - **Filtros**: `GET /api/v1/products?categoryId=1` filtra productos por categoria; `GET /api/v1/orders?status=PAID` filtra ordenes por estado. Ambos combinables con la paginacion.
-- **OpenAPI/Swagger**: `GET /v3/api-docs` (JSON) y `/swagger-ui.html` (UI interactiva), publicos (sin token) en `dev`/`test` y **deshabilitados en `prod`** (`springdoc.api-docs.enabled=false`), porque el documento describe la superficie completa de la API incluidos los endpoints de administracion. La UI incluye el boton "Authorize" para pegar el JWT y probar los endpoints protegidos.
-- **Contenido del documento**: las descripciones de cada endpoint salen del Javadoc de controllers y DTOs (via `therapi-runtime-javadoc`), sin duplicarlo en anotaciones `@Operation`/`@Schema`. Ademas se generan automaticamente: los roles que exige cada operacion (leidos de `@PreAuthorize`), las respuestas de error con el esquema `ApiError` (`400`/`404`/`409`/`500`, mas `401`/`403` en los endpoints protegidos) y los parametros `page`/`size`/`sort` de los listados (`@ParameterObject Pageable`). Los endpoints publicos aparecen sin candado porque `SecurityConfig` y Swagger leen la misma lista (`PublicEndpoints`).
+- **Errores**: todas las respuestas de error usan el mismo esquema `ApiError` (`400` validacion / JSON malformado, `401`, `403`, `404`, `409` duplicados y conflictos de bloqueo optimista, `500`). Una excepcion no anticipada responde `500` sin exponer el mensaje ni el stacktrace real, que quedan en el log del servidor.
+- **Borrado logico**: los `DELETE` de sucursales, categorias, productos, ingredientes, usuarios, clientes y empleados marcan `active=false`; no borran filas.
+- **Dinero y tiempo**: `BigDecimal` para importes, `OffsetDateTime` para timestamps con zona.
+- **OpenAPI/Swagger**: `GET /v3/api-docs` y `/swagger-ui.html` estan **deshabilitados en `prod`** (`springdoc.api-docs.enabled=false`), porque el documento describe la superficie completa de la API incluidos los endpoints de administracion. En `dev`/`test` se publican sin token. El documento se genera desde el codigo (descripciones del Javadoc via `therapi-runtime-javadoc`, roles leidos de `@PreAuthorize`, errores desde el contrato real del handler global), no desde anotaciones duplicadas.
+
+## Endpoints
 
 ### Branches
 
@@ -309,7 +285,7 @@ Request:
 }
 ```
 
-Roles disponibles: `ADMIN`, `MANAGER`, `CASHIER`, `BARISTA`, `CUSTOMER`. La contraseña se cifra con `PasswordEncoder` antes de guardarse. `DELETE /api/v1/users/{id}` desactiva el usuario con `active=false`.
+Roles disponibles: `ADMIN`, `MANAGER`, `CASHIER`, `BARISTA`, `CUSTOMER`. La contrasena se cifra con `BCryptPasswordEncoder` antes de guardarse; nunca se almacena en texto plano ni se devuelve en las respuestas. `DELETE /api/v1/users/{id}` desactiva el usuario con `active=false`.
 
 ### Customers
 
@@ -321,7 +297,7 @@ PUT    /api/v1/customers/{userId}
 DELETE /api/v1/customers/{userId}
 ```
 
-Request de `POST` (registra el `user` con rol `CUSTOMER` y su perfil en un solo paso):
+Request de `POST` (registra el `user` con rol `CUSTOMER` y su perfil en un solo paso, en la misma transaccion, de modo que `user.role` siempre queda acorde al perfil):
 
 ```json
 {
@@ -434,9 +410,11 @@ Request de `POST /api/v1/orders/{orderId}/payments` (admite varios pagos parcial
 }
 ```
 
-Subtotal, impuestos (`app.tax-rate`, default `0.16`) y total se recalculan en cada alta/baja de item. Los items y el estado solo se pueden modificar mientras la orden este `PENDING`; cuando la suma de los pagos cubre el total, la orden pasa automaticamente a `PAID`. Un pago que exceda el saldo pendiente responde `400`. Si dos operaciones concurrentes chocan sobre la misma orden (bloqueo optimista via `version`), la que pierde la carrera responde `409` y debe reintentarse.
+Subtotal, impuestos (`app.tax-rate`, default `0.16`) y total se recalculan en cada alta/baja de item. Los items y el estado solo se pueden modificar mientras la orden este `PENDING`; cuando la suma de los pagos cubre el total, la orden pasa automaticamente a `PAID`. Un pago que exceda el saldo pendiente responde `400`. Si dos operaciones concurrentes chocan sobre la misma orden (bloqueo optimista via columna `version`), la que pierde la carrera responde `409` y debe reintentarse: dos pagos simultaneos nunca se pisan en silencio.
 
 Al pasar la orden a `PAID`, se descuenta automaticamente el stock de ingredientes de la sucursal segun la receta de cada producto vendido (ver **Recipes** e **Inventory**); si algun ingrediente no tiene stock suficiente, el pago se rechaza con `400` y la transaccion completa se revierte (la orden sigue `PENDING`).
+
+El flujo completo de ordenes y pagos deja rastro de auditoria en el log (`OrderServiceImpl`, via SLF4J): creacion de orden, alta/baja de items, cambios de estado, pagos registrados e intentos rechazados.
 
 ### Recipes (receta por producto)
 
@@ -480,7 +458,7 @@ Request de `POST .../movements` (registra un movimiento manual de stock; el usua
 
 ## Modelo De Dominio
 
-La migracion inicial define estas areas:
+Tablas por area:
 
 - Sucursales: `branches`
 - Usuarios: `users`
@@ -498,38 +476,9 @@ Enums PostgreSQL:
 - `payment_method`
 - `movement_type`
 
-## Analisis Actual
-
-### Fortalezas
-
-- Buen uso de Flyway como fuente de verdad del esquema.
-- `ddl-auto=validate` evita que Hibernate modifique la base accidentalmente.
-- El modelo ya cubre la mayor parte del negocio de una cafeteria.
-- Los CRUDs existentes usan DTOs y validaciones.
-- El manejo global de errores ya da respuestas HTTP mas limpias.
-- Se usa `BigDecimal` para dinero y `OffsetDateTime` para timestamps con zona.
-- Borrado logico consistente (`active=false`) en todas las entidades con CRUD expuesto.
-- Contraseñas cifradas con `spring-security-crypto`, nunca se guardan en texto plano.
-- Cobertura de tests unitarios, de controlador y de integracion (Testcontainers) para todos los CRUDs expuestos hasta ahora.
-- El alta de `customers` y `employees` registra el `user` en el mismo paso, eliminando por construccion el riesgo de un `user.role` desalineado con el perfil (ya no se referencia un `userId` de entrada que se pudiera desalinear).
-- `Order` usa bloqueo optimista (columna `version`): dos escrituras concurrentes sobre la misma orden (dos pagos, o un pago y un cambio de estado) nunca se pisan en silencio, la segunda recibe `409 Conflict` para reintentar.
-- `GlobalExceptionHandler` tambien cubre violaciones de integridad de datos, conflictos de bloqueo optimista y JSON malformado con el mismo esquema `ApiError`; cualquier excepcion no anticipada responde `500` sin exponer el mensaje/stacktrace real (que si queda en el log del servidor).
-- El flujo de ordenes/pagos registra logging de auditoria (`OrderServiceImpl`, via SLF4J): creacion de orden, alta/baja de items, cambios de estado, pagos registrados e intentos rechazados.
-- Autenticacion/autorizacion real con Spring Security + JWT sin estado (`POST /api/v1/auth/login`); todos los endpoints previos ahora exigen rol via `@PreAuthorize`/`@PostAuthorize`, con reglas de "dueño del recurso" para `customers` y `orders`.
-- Inventario completo: receta (bill of materials) por producto, stock por sucursal con movimientos auditables (`INCOMING`/`WASTE`/`ADJUSTMENT`), y descuento automatico de ingredientes al pagar una orden (movimiento `SALE`), todo dentro de la misma transaccion del pago: si el stock no alcanza, el pago se revierte por completo.
-- API versionada (`/api/v1`), listados paginados (Spring Data `Page` con `page`/`size`/`sort`), filtros (`products?categoryId`, `orders?status`) y documentacion OpenAPI/Swagger (`/swagger-ui.html`, `/v3/api-docs`) con el esquema de seguridad JWT ya declarado.
-- El documento OpenAPI se genera a partir del codigo y no de anotaciones duplicadas: descripciones desde el Javadoc, roles desde `@PreAuthorize`, errores desde el contrato real de `GlobalExceptionHandler` y rutas publicas desde la misma lista que usa `SecurityConfig` (`PublicEndpoints`), asi la documentacion no se desincroniza del comportamiento. En `prod` la documentacion no se publica.
-- Entrega lista: `Dockerfile` multi-stage (Temurin 25, usuario no-root), `docker-compose` con app + Postgres (healthcheck + `depends_on`), y CI en GitHub Actions que corre `./mvnw verify` (incluye Testcontainers) en cada push/PR.
-
-### Riesgos Y Deuda Tecnica
-
-- Falta un test de integracion (Testcontainers) para el flujo de registro de `customers`/`employees`; hoy solo esta cubierto con unitarios (Mockito) y de controlador (MockMvc).
-- El pipeline de CI compila y prueba, pero no publica la imagen a ningun registry ni despliega (fuera de alcance por ahora).
-
-## Siguientes Pasos Recomendados
-
-El roadmap de "calidad de produccion" (seguridad, inventario, API publica, configuracion por perfil y entrega) esta completo. Mejoras opcionales a futuro:
+## Roadmap
 
 - Publicar la imagen Docker a un registry (ghcr.io) y agregar un job de despliegue al pipeline.
-- Cerrar la brecha de test de integracion del alta de `customers`/`employees`.
-- Refresh tokens / expiracion-renovacion de JWT, rate limiting, y observabilidad (Actuator + metricas).
+- Refresh tokens / renovacion de JWT.
+- Rate limiting en `POST /api/v1/auth/login`.
+- Observabilidad: Actuator y metricas.
