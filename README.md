@@ -1,6 +1,6 @@
 # Coffee Shop API
 
-> **Rama:** `main` — Produccion (version `1.1.0`, perfil Spring activo por defecto: `prod`).
+> **Rama:** `main` — Produccion (version `1.2.0`, perfil Spring activo por defecto: `prod`).
 
 Backend REST para gestionar una cafeteria. El proyecto esta construido con Spring Boot, PostgreSQL, JPA y Flyway. Cubre el dominio completo del negocio: catalogo (sucursales, categorias, productos, ingredientes), usuarios/clientes/empleados, flujo de ventas (ordenes y pagos) e inventario (recetas y stock por sucursal con descuento automatico al vender). La API esta versionada (`/api/v1`), autenticada con JWT y autorizada por rol, paginada, documentada con OpenAPI/Swagger y empaquetada con Docker + CI.
 
@@ -33,8 +33,14 @@ La aplicacion se configura por variables de entorno. En el perfil `prod` las cre
 | `JWT_EXPIRATION_MINUTES` | no | `60` | Vigencia del token emitido en el login |
 | `SPRING_PROFILES_ACTIVE` | no | `prod` | Perfil Spring |
 | `APP_TAX_RATE` | no | `0.16` | Tasa de impuesto aplicada al total de la orden (`app.tax-rate`) |
+| `PORT` | no | `8080` | Puerto HTTP. Los PaaS lo asignan al arrancar |
+| `APP_SEED_ENABLED` | no | `false` | Siembra del primer empleado. Ver [Primer administrador](#primer-administrador) |
+| `APP_SEED_EMPLOYEE_EMAIL` | solo si `APP_SEED_ENABLED=true` | — | Correo del empleado inicial |
+| `APP_SEED_EMPLOYEE_PASSWORD` | solo si `APP_SEED_ENABLED=true` | — | Contrasena temporal del empleado inicial |
 
 El esquema lo crea y evoluciona **Flyway** (`src/main/resources/db/migration/`), que corre automaticamente al arrancar la app. `spring.jpa.hibernate.ddl-auto=validate`, asi que Hibernate solo verifica que las entidades coincidan con la base y nunca la altera.
+
+`/actuator/health` es publico y responde sin detalle (`{"status":"UP"}`): lo consulta el host sin credenciales para decidir si enruta trafico, y mientras Flyway migra responde `503`. Es el unico endpoint de Actuator publicado — la lista esta limitada explicitamente para que el starter no exponga de paso `env`, `beans` o `mappings`.
 
 ### Perfiles
 
@@ -45,7 +51,7 @@ El esquema lo crea y evoluciona **Flyway** (`src/main/resources/db/migration/`),
 
 ### Con Docker Compose (app + base de datos)
 
-`docker-compose.yml` levanta `postgres-cafeteria` (Postgres 16 con healthcheck y volumen persistente) y `app` (construida desde el `Dockerfile` multi-stage). El servicio `app` espera a que la BD este sana (`depends_on: condition: service_healthy`) antes de arrancar.
+`docker-compose.yml` levanta `postgres-cafeteria` (Postgres 16 con healthcheck y volumen persistente) y `app` (construida desde el `Dockerfile` multi-stage). El servicio `app` espera a que la BD este sana (`depends_on: condition: service_healthy`) antes de arrancar, y tiene su propio healthcheck contra `/actuator/health` con `start_period` holgado para no marcarse `unhealthy` mientras la JVM levanta y Flyway migra.
 
 Copiar la plantilla de variables y ajustarla — como minimo, definir un `JWT_SECRET` real y credenciales de BD propias:
 
@@ -74,26 +80,50 @@ DB_URL=jdbc:postgresql://host:5432/cafeteria_db \
 DB_USERNAME=... \
 DB_PASSWORD=... \
 JWT_SECRET=... \
-java -jar target/coffeeshop-1.1.0.jar
+java -jar target/coffeeshop-1.2.0.jar
 ```
+
+### En un host (PaaS)
+
+La imagen no necesita nada especial: basta un PaaS que construya el `Dockerfile`, inyecte `PORT` y ofrezca un Postgres gestionado. Flyway aplica las migraciones al arrancar, asi que no hay paso manual de esquema.
+
+Ademas de las variables de la tabla de arriba, conviene definir `JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=75` para que la JVM respete el limite de memoria del contenedor, y configurar el health check del servicio en `/actuator/health`.
+
+Ojo con el formato de la URL: los PaaS suelen publicar la conexion como `postgres://usuario:clave@host:puerto/base`, pero `DB_URL` espera JDBC. En Railway se arma referenciando el servicio de Postgres, sin copiar credenciales a mano:
+
+```
+DB_URL=jdbc:postgresql://${{Postgres.PGHOST}}:${{Postgres.PGPORT}}/${{Postgres.PGDATABASE}}
+DB_USERNAME=${{Postgres.PGUSER}}
+DB_PASSWORD=${{Postgres.PGPASSWORD}}
+```
+
+> Si el host usa red privada solo-IPv6 (es el caso de Railway) y la app no logra conectar a Postgres, agregar `-Djava.net.preferIPv6Addresses=true` a `JAVA_TOOL_OPTIONS`: la JVM prefiere IPv4 por defecto.
 
 ### Primer administrador
 
-Una base recien migrada por Flyway queda vacia, y en `prod` no se siembra ningun usuario. Como `POST /api/v1/users` exige rol `ADMIN`, hace falta un arranque en frio manual. Los unicos endpoints publicos son `/api/v1/auth/**` y `POST /api/v1/customers`, asi que el camino mas seguro es registrar el usuario por la API (para que la contrasena se cifre con el mismo `BCryptPasswordEncoder` que usa el login) y promoverlo despues en la base:
+Una base recien migrada por Flyway queda vacia y no hay forma de entrar: el login exige un `user` existente, el resto de la API exige token, y el unico endpoint publico (`POST /api/v1/customers`) crea un `CUSTOMER`, que no puede operar el punto de venta. Ademas el POS manda el uid de la sesion como `OrderRequest.employeeId`, asi que la primera cuenta tiene que ser un **empleado con sucursal**, no un usuario `ADMIN` suelto.
+
+`BootstrapSeeder` cubre ese arranque en frio. Para el primer despliegue se definen:
+
+```
+APP_SEED_ENABLED=true
+APP_SEED_EMPLOYEE_EMAIL=<correo real>
+APP_SEED_EMPLOYEE_PASSWORD=<contrasena temporal fuerte>
+```
+
+Al arrancar crea una sucursal y un empleado con rol `ADMIN`. Verificar y entrar:
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/customers \
+curl https://<dominio>/actuator/health          # {"status":"UP"}
+
+curl -X POST https://<dominio>/api/v1/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"email":"admin@tudominio.com","password":"<contrasena-fuerte>","firstName":"...","lastName":"..."}'
+  -d '{"email":"<correo real>","password":"<contrasena temporal>"}'
 ```
 
-```sql
--- Promover ese usuario a ADMIN y quitarle el perfil de cliente.
-UPDATE users SET role = 'ADMIN' WHERE email = 'admin@tudominio.com';
-DELETE FROM customers WHERE user_id = (SELECT id FROM users WHERE email = 'admin@tudominio.com');
-```
+Con ese token, cambiar la contrasena y dar de alta al resto del personal via `POST /api/v1/employees`. Despues **poner `APP_SEED_ENABLED=false` y redesplegar**.
 
-A partir de ahi, ese usuario puede crear el resto de empleados y administradores via `POST /api/v1/employees`. Conviene cerrar el ciclo cuanto antes y no dejar el acceso a la base abierto.
+El seeder es idempotente (si el correo ya existe no toca nada, ni siquiera una contrasena cambiada despues), asi que dejarlo encendido no rompe datos; se apaga porque no tiene sentido mantener vivas credenciales de arranque en produccion. Si esta encendido y falta el correo o la contrasena, la app **no arranca**, en vez de crear un acceso adivinable.
 
 ## Integracion Continua
 
@@ -479,6 +509,6 @@ Enums PostgreSQL:
 ## Roadmap
 
 - Publicar la imagen Docker a un registry (ghcr.io) y agregar un job de despliegue al pipeline.
-- Refresh tokens / renovacion de JWT.
+- Refresh tokens / renovacion de JWT: hoy el token dura 60 minutos y no se renueva, asi que en una jornada larga la sesion del punto de venta expira a media venta.
 - Rate limiting en `POST /api/v1/auth/login`.
-- Observabilidad: Actuator y metricas.
+- Ampliar la observabilidad: Actuator solo publica `health`; faltan metricas (Micrometer) y trazas.

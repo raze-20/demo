@@ -33,8 +33,23 @@ services:
       # Obligatoria en prod (la app no arranca sin ella); se toma de .env.
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-60}
+      # Arranque en frio: con el perfil prod la base recien migrada no tiene con quien hacer
+      # login. Encender solo para el primer arranque y apagar tras cambiar la clave.
+      APP_SEED_ENABLED: ${APP_SEED_ENABLED:-false}
+      APP_SEED_EMPLOYEE_EMAIL: ${APP_SEED_EMPLOYEE_EMAIL:-}
+      APP_SEED_EMPLOYEE_PASSWORD: ${APP_SEED_EMPLOYEE_PASSWORD:-}
     ports:
       - "8080:8080"
+    healthcheck:
+      # La imagen de runtime es Alpine sin curl, pero BusyBox trae wget. El grep evita dar por
+      # sana una respuesta 503 con cuerpo DOWN mientras Flyway todavia esta migrando.
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:8080/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      # El arranque de la JVM mas las migraciones tardan mas que un interval; sin esto el
+      # contenedor se marcaria unhealthy antes de haber terminado de levantar.
+      start_period: 40s
 
 volumes:
   pgdata_cafeteria:

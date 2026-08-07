@@ -4,12 +4,14 @@ import com.raze.coffeeshop.model.Order;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpInputMessage;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authorization.AuthorizationDeniedException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.UUID;
 
@@ -32,6 +34,16 @@ class GlobalExceptionHandlerTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(response.getBody().message()).isEqualTo("Order not found");
+    }
+
+    @Test
+    void handleNoResource_retorna404_yNoReflejaLaRutaPedida() {
+        NoResourceFoundException ex = new NoResourceFoundException(HttpMethod.GET, "/v3/api-docs", "v3/api-docs");
+
+        ResponseEntity<ApiError> response = handler.handleNoResource(ex);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(response.getBody().message()).doesNotContain("/v3/api-docs");
     }
 
     @Test

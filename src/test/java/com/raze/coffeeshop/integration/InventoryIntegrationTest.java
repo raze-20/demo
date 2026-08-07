@@ -23,7 +23,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import tools.jackson.databind.JsonNode;
@@ -51,7 +51,7 @@ class InventoryIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:16-alpine");
 
     @Autowired
     private MockMvc mockMvc;
@@ -108,7 +108,7 @@ class InventoryIntegrationTest {
                                 """.formatted(email, password)))
                 .andExpect(status().isOk())
                 .andReturn();
-        return objectMapper.readTree(result.getResponse().getContentAsString()).get("token").asText();
+        return objectMapper.readTree(result.getResponse().getContentAsString()).get("token").asString();
     }
 
     private String bearer(String token) {
@@ -239,7 +239,7 @@ class InventoryIntegrationTest {
                                 """.formatted(branchId, employeeId)))
                 .andExpect(status().isCreated())
                 .andReturn();
-        String orderId = objectMapper.readTree(orderResult.getResponse().getContentAsString()).get("id").asText();
+        String orderId = objectMapper.readTree(orderResult.getResponse().getContentAsString()).get("id").asString();
 
         mockMvc.perform(post("/api/v1/orders/" + orderId + "/items")
                         .header("Authorization", bearer(token))
@@ -264,7 +264,7 @@ class InventoryIntegrationTest {
                 .andExpect(status().isCreated())
                 .andReturn();
         JsonNode body = objectMapper.readTree(paid.getResponse().getContentAsString());
-        org.assertj.core.api.Assertions.assertThat(body.get("status").asText()).isEqualTo("PAID");
+        org.assertj.core.api.Assertions.assertThat(body.get("status").asString()).isEqualTo("PAID");
 
         return orderId;
     }

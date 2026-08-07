@@ -39,6 +39,17 @@ public final class PublicEndpoints {
             "/swagger-ui.html"
     );
 
+    /**
+     * Infraestructura del entorno de despliegue, no de la API. El health check lo consulta el
+     * host (Railway, Render, Fly) sin credenciales para decidir si enruta tráfico a la instancia,
+     * así que tiene que pasar el filtro JWT; responde sin detalle (ver {@code management} en
+     * {@code application.yml}). Va aparte de {@link #DOCS} porque no es documentación y, a
+     * diferencia de {@link #API}, tampoco es superficie de negocio que Swagger deba listar.
+     */
+    public static final List<String> OPS = List.of(
+            "/actuator/health"
+    );
+
     private static final List<PathPattern> API_PATTERNS = API.stream()
             .map(rule -> PathPatternParser.defaultInstance.parse(rule.pattern()))
             .toList();

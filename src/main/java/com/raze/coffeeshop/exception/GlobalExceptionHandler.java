@@ -12,6 +12,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
@@ -24,6 +25,17 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiError> handleNotFound(ResourceNotFoundException ex) {
         return buildResponse(HttpStatus.NOT_FOUND, ex.getMessage(), Map.of());
+    }
+
+    /**
+     * Una URL que no corresponde a ningun endpoint. Sin este handler cae en el catch-all de
+     * abajo, que responde 500 y escribe un stack trace completo: en un host publico, cualquier
+     * bot probando rutas al azar generaria errores de servidor y ruido en el log. El mensaje no
+     * incluye la ruta pedida para no reflejar entrada del cliente en la respuesta.
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiError> handleNoResource(NoResourceFoundException ex) {
+        return buildResponse(HttpStatus.NOT_FOUND, "No existe el recurso solicitado", Map.of());
     }
 
     @ExceptionHandler(DuplicateResourceException.class)

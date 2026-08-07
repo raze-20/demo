@@ -17,7 +17,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import tools.jackson.databind.JsonNode;
@@ -45,7 +45,7 @@ class AuthIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:16-alpine");
 
     @Autowired
     private MockMvc mockMvc;
@@ -97,7 +97,7 @@ class AuthIntegrationTest {
                 .andReturn();
 
         JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
-        return body.get("token").asText();
+        return body.get("token").asString();
     }
 
     @Test
@@ -120,6 +120,14 @@ class AuthIntegrationTest {
         // La documentación OpenAPI es publica (permitida en SecurityConfig): 200 sin token.
         mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk());
+
+        // El health check tambien, porque lo consulta el host sin credenciales para decidir si
+        // enruta trafico: si dejara de ser publico responderia 401 y el despliegue se caeria
+        // entero sin que fallara ningun endpoint de negocio. Responde sin detalle a proposito.
+        mockMvc.perform(get("/actuator/health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"))
+                .andExpect(jsonPath("$.components").doesNotExist());
 
         // Login con password incorrecta responde 401.
         mockMvc.perform(post("/api/v1/auth/login")
