@@ -1,4 +1,4 @@
-# Coffee Demo API
+# Coffee Shop API
 
 > **Rama:** `dev` — Desarrollo (version `1.2.0-SNAPSHOT`, perfil Spring activo por defecto: `dev`).
 
@@ -41,7 +41,7 @@ El proyecto ya tiene una base solida de dominio:
 ## Estructura
 
 ```text
-src/main/java/com/raze/demo
+src/main/java/com/raze/coffeeshop
   controller/      Controladores REST
   dto/             Requests y responses de la API
   enums/           Enums del dominio
@@ -55,7 +55,7 @@ src/main/resources
   application.yml
   db/migration/V1__init_schema.sql
 
-src/test/java/com/raze/demo
+src/test/java/com/raze/coffeeshop
   controller/      Tests de controlador (MockMvc)
   integration/     Tests de integracion end-to-end (Testcontainers)
   service/impl/    Tests unitarios de servicios (Mockito)

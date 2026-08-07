@@ -1,6 +1,6 @@
 logging:
   level:
-    com.raze.demo: INFO
+    com.raze.coffeeshop: INFO
     org.hibernate.SQL: WARN
 
 # En produccion las credenciales de BD son OBLIGATORIAS: sin default, para que la app falle
