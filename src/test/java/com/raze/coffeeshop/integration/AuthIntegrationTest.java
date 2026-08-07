@@ -121,6 +121,14 @@ class AuthIntegrationTest {
         mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk());
 
+        // El health check tambien, porque lo consulta el host sin credenciales para decidir si
+        // enruta trafico: si dejara de ser publico responderia 401 y el despliegue se caeria
+        // entero sin que fallara ningun endpoint de negocio. Responde sin detalle a proposito.
+        mockMvc.perform(get("/actuator/health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"))
+                .andExpect(jsonPath("$.components").doesNotExist());
+
         // Login con password incorrecta responde 401.
         mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)

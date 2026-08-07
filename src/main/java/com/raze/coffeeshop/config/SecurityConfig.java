@@ -45,6 +45,7 @@ public class SecurityConfig {
                         }
                     }
                     auth.requestMatchers(PublicEndpoints.DOCS.toArray(String[]::new)).permitAll()
+                            .requestMatchers(PublicEndpoints.OPS.toArray(String[]::new)).permitAll()
                             .anyRequest().authenticated();
                 })
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

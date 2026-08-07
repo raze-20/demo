@@ -71,26 +71,34 @@ DB_USERNAME: root
 DB_PASSWORD: rootpassword
 ```
 
+El puerto sale de `PORT` (default `8080`), que es la variable con la que los PaaS asignan el puerto en tiempo de arranque.
+
+`/actuator/health` queda publico y sin detalle (`{"status":"UP"}`): lo consulta el host sin credenciales para decidir si enruta trafico a la instancia, y mientras Flyway migra responde `503`. Es el unico endpoint de Actuator publicado — `management.endpoints.web.exposure.include` lo limita explicitamente para que el starter no publique de paso `env`, `beans` o `mappings`.
+
 `application.yml` usa `spring.jpa.hibernate.ddl-auto=validate`, por lo que Hibernate solo valida que las entidades coincidan con la base. El esquema se crea y evoluciona con Flyway.
 
 Perfiles Spring (se elige con `SPRING_PROFILES_ACTIVE`):
 
-- `dev` (default en la rama `dev`): logging verboso (`DEBUG` + SQL), secreto JWT de conveniencia por defecto y siembra del empleado inicial (ver abajo).
+- `dev` (default en la rama `dev`): logging verboso (`DEBUG` + SQL), secreto JWT de conveniencia por defecto, documentacion OpenAPI publicada y siembra del empleado inicial (ver abajo).
 - `test`: se activa automaticamente al correr `mvnw test` (via surefire); logging minimo y secreto JWT de prueba. El datasource lo aporta Testcontainers.
 - `prod` (default en la rama `main`): logging `INFO`, y `DB_URL`/`DB_USERNAME`/`DB_PASSWORD` **obligatorias sin default** — la app no arranca si faltan (evita usar credenciales de desarrollo por accidente). `JWT_SECRET` tambien es obligatoria.
 
-### Empleado inicial (solo perfil `dev`)
+### Empleado inicial (arranque en frio)
 
-Una base recien migrada por Flyway queda vacia y no hay forma de entrar: `POST /api/v1/auth/login` necesita un `user` existente y el resto de la API exige token. `DevDataSeeder` resuelve ese arranque en frio: al levantar la app con el perfil `dev` crea una sucursal de demo y un empleado con rol `ADMIN`, listo para el login del front.
+Una base recien migrada por Flyway queda vacia y no hay forma de entrar: `POST /api/v1/auth/login` necesita un `user` existente y el resto de la API exige token. El unico endpoint publico crea un `CUSTOMER`, que no puede operar el front de personal, y el punto de venta manda el uid de la sesion como `OrderRequest.employeeId` — asi que la primera cuenta tiene que ser un **empleado con sucursal**, no un usuario `ADMIN` suelto.
 
-| Campo | Valor por defecto |
-|---|---|
-| Correo | `raze.armando@gmail.com` |
-| Contrasena | `password` |
-| Rol | `ADMIN` |
-| Sucursal | `Sucursal Centro` |
+`BootstrapSeeder` resuelve ese arranque en frio: crea una sucursal y un empleado con rol `ADMIN` si no existen todavia. No depende del perfil sino de `app.seed.enabled`, que en `dev` viene encendido y en cualquier otro entorno hay que pedir a proposito.
 
-Los valores se configuran en `application-dev.yml` bajo `app.seed.*`. El seeder es idempotente: si ya existe un usuario con ese correo no toca nada, asi que arrancar la app varias veces (o cambiar la contrasena despues) es seguro. En `prod` no se ejecuta — ahi el primer administrador se da de alta a mano, para no dejar credenciales conocidas en produccion.
+| Campo | Valor por defecto en `dev` | Variable de entorno |
+|---|---|---|
+| Correo | `raze.armando@gmail.com` | `APP_SEED_EMPLOYEE_EMAIL` |
+| Contrasena | `password` | `APP_SEED_EMPLOYEE_PASSWORD` |
+| Rol | `ADMIN` | — (siempre `ADMIN`) |
+| Sucursal | `Sucursal Centro` | `APP_SEED_BRANCH_NAME` |
+
+El seeder es idempotente: si ya existe un usuario con ese correo no toca nada, asi que arrancar la app varias veces (o cambiar la contrasena despues) es seguro. Correo y contrasena son los unicos valores sin default: si `app.seed.enabled=true` y falta alguno, la app **no arranca**, en vez de crear un acceso adivinable.
+
+En produccion el procedimiento es encenderlo para el primer despliegue, entrar, cambiar la contrasena y volver a apagarlo (ver [Despliegue](#despliegue)). Asi las credenciales iniciales viajan por variables de entorno y no quedan versionadas en una migracion de Flyway.
 
 ### Datos de prueba (solo perfil `dev`)
 
@@ -146,7 +154,7 @@ Dos casos limite quedan sembrados a proposito para probarlos sin preparar nada:
 
 ## Docker
 
-`docker-compose.yml` levanta dos servicios: `postgres-cafeteria` (Postgres 16, con healthcheck) y `app` (la aplicacion, construida desde el `Dockerfile` multi-stage). El servicio `app` espera a que la BD este sana (`depends_on: condition: service_healthy`) antes de arrancar.
+`docker-compose.yml` levanta dos servicios: `postgres-cafeteria` (Postgres 16, con healthcheck) y `app` (la aplicacion, construida desde el `Dockerfile` multi-stage). El servicio `app` espera a que la BD este sana (`depends_on: condition: service_healthy`) antes de arrancar, y tiene su propio healthcheck contra `/actuator/health` con `start_period` holgado para no marcarse `unhealthy` mientras la JVM levanta y Flyway migra.
 
 Copiar la plantilla de variables y ajustarla (define `JWT_SECRET`, credenciales de BD, perfil):
 
@@ -169,6 +177,51 @@ docker compose up -d postgres-cafeteria
 ```
 
 El `Dockerfile` es multi-stage: compila con `eclipse-temurin:25-jdk-alpine` usando el Maven Wrapper y corre el fat jar sobre `eclipse-temurin:25-jre-alpine` como usuario no-root.
+
+## Despliegue
+
+La imagen no necesita nada especial del host: basta un PaaS que construya el `Dockerfile`, inyecte `PORT` y ofrezca un Postgres gestionado. Flyway aplica las migraciones al arrancar, asi que no hay paso manual de esquema.
+
+Variables que hay que definir en el host:
+
+| Variable | Valor |
+|---|---|
+| `SPRING_PROFILES_ACTIVE` | `prod` |
+| `DB_URL` | `jdbc:postgresql://HOST:PUERTO/BASE` (formato JDBC, no la `postgres://` que suelen dar los PaaS) |
+| `DB_USERNAME` / `DB_PASSWORD` | credenciales del Postgres gestionado |
+| `JWT_SECRET` | cadena larga y aleatoria: `openssl rand -base64 48` |
+| `JAVA_TOOL_OPTIONS` | `-XX:MaxRAMPercentage=75` para que la JVM respete el limite del contenedor |
+
+En Railway las credenciales se referencian desde el servicio de Postgres sin copiarlas a mano:
+
+```
+DB_URL=jdbc:postgresql://${{Postgres.PGHOST}}:${{Postgres.PGPORT}}/${{Postgres.PGDATABASE}}
+DB_USERNAME=${{Postgres.PGUSER}}
+DB_PASSWORD=${{Postgres.PGPASSWORD}}
+```
+
+Configurar el health check del servicio en `/actuator/health`.
+
+**Primer despliegue (arranque en frio).** La base recien migrada no tiene con quien hacer login, asi que solo la primera vez se agregan:
+
+```
+APP_SEED_ENABLED=true
+APP_SEED_EMPLOYEE_EMAIL=<correo real>
+APP_SEED_EMPLOYEE_PASSWORD=<clave temporal fuerte>
+```
+
+Tras el arranque, verificar y cerrar:
+
+```bash
+curl https://<dominio>/actuator/health          # {"status":"UP"}
+curl -X POST https://<dominio>/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"<correo real>","password":"<clave temporal>"}'
+```
+
+Con el token, cambiar la contrasena; despues poner `APP_SEED_ENABLED=false` y redesplegar. En `prod` la documentacion OpenAPI esta deshabilitada a proposito, asi que `/v3/api-docs` y Swagger UI no responden.
+
+> Si el host usa red privada solo-IPv6 (es el caso de Railway) y la app no logra conectar a Postgres, agregar `-Djava.net.preferIPv6Addresses=true` a `JAVA_TOOL_OPTIONS`: la JVM prefiere IPv4 por defecto.
 
 ## Integracion Continua
 
@@ -576,10 +629,12 @@ Enums PostgreSQL:
 ### Riesgos Y Deuda Tecnica
 
 - El pipeline de CI compila y prueba, pero no publica la imagen a ningun registry ni despliega (fuera de alcance por ahora).
+- El JWT dura 60 minutos y no hay refresh: en una jornada larga la sesion del punto de venta expira a media venta y hay que volver a entrar.
 
 ## Siguientes Pasos Recomendados
 
 El roadmap de "calidad de produccion" (seguridad, inventario, API publica, configuracion por perfil y entrega) esta completo. Mejoras opcionales a futuro:
 
 - Publicar la imagen Docker a un registry (ghcr.io) y agregar un job de despliegue al pipeline.
-- Refresh tokens / expiracion-renovacion de JWT, rate limiting, y observabilidad (Actuator + metricas).
+- Refresh tokens / expiracion-renovacion de JWT y rate limiting en el login.
+- Ampliar la observabilidad: hoy Actuator solo publica `health`; faltan metricas (Micrometer) y trazas.

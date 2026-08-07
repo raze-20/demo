@@ -1,3 +1,8 @@
+# Los PaaS (Railway, Render, Fly) asignan el puerto en tiempo de arranque y lo publican en PORT;
+# el default mantiene el 8080 que exponen el Dockerfile y docker-compose en local.
+server:
+  port: ${PORT:8080}
+
 spring:
   application:
     name: coffeeshop-api
@@ -22,8 +27,39 @@ spring:
     enabled: true
     baseline-on-migrate: true
 
+# Actuator entra solo para que el host tenga un health check con el que decidir si enruta trafico
+# a la instancia; durante las migraciones de Flyway el endpoint responde 503 y evita que entren
+# peticiones a una app a medio arrancar. La lista de expuestos es explicita (no aditiva) para que
+# agregar el starter no publique de paso env, beans o mappings.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      # El endpoint es publico: sin detalle, para no filtrar el estado de la base ni su URL.
+      show-details: never
+
 app:
   tax-rate: 0.16
   jwt:
     secret: ${JWT_SECRET}
     expiration-minutes: ${JWT_EXPIRATION_MINUTES:60}
+  # Siembra del primer empleado con acceso (ver BootstrapSeeder). Apagada salvo que se pida a
+  # proposito: en dev la enciende application-dev.yml, y en produccion se enciende con
+  # APP_SEED_ENABLED solo para el arranque en frio del primer despliegue.
+  seed:
+    enabled: ${APP_SEED_ENABLED:false}
+    employee:
+      # Sin default a proposito: el seeder falla al arrancar antes que crear un acceso adivinable.
+      email: ${APP_SEED_EMPLOYEE_EMAIL:}
+      password: ${APP_SEED_EMPLOYEE_PASSWORD:}
+      first-name: ${APP_SEED_EMPLOYEE_FIRST_NAME:Admin}
+      last-name: ${APP_SEED_EMPLOYEE_LAST_NAME:Inicial}
+      position: ${APP_SEED_EMPLOYEE_POSITION:Administrador}
+    branch:
+      name: ${APP_SEED_BRANCH_NAME:Sucursal Principal}
+      address: ${APP_SEED_BRANCH_ADDRESS:Sin direccion}
+      city: ${APP_SEED_BRANCH_CITY:Sin ciudad}
+      state: ${APP_SEED_BRANCH_STATE:Sin estado}

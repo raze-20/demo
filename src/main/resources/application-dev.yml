@@ -24,9 +24,11 @@ springdoc:
 app:
   jwt:
     secret: ${JWT_SECRET:dev-only-insecure-secret-change-me-not-for-production-use-0123456789}
-  # Empleado ADMIN que DevDataSeeder crea al arrancar si la base no lo tiene todavia,
-  # para poder hacer login desde el front sobre una base recien migrada. Solo perfil dev.
+  # Empleado ADMIN que BootstrapSeeder crea al arrancar si la base no lo tiene todavia,
+  # para poder hacer login desde el front sobre una base recien migrada. En dev viene encendido
+  # (la base local se tira y se recrea seguido); en produccion se enciende con APP_SEED_ENABLED.
   seed:
+    enabled: true
     employee:
       email: raze.armando@gmail.com
       password: password
